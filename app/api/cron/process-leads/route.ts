@@ -125,7 +125,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Search for missing website using DuckDuckGo HTML proxy
       if (!finalWebsite) {
         console.log(`[cron/process-leads] No website found on Maps. Searching web for ${lead.business_name}...`);
-        const foundUrl = await findMissingWebsite(lead.business_name, lead.location || lead.address || '');
+        const foundUrl = await findMissingWebsite(lead.business_name || 'Unknown Business', lead.address || '');
         if (foundUrl) {
           console.log(`[cron/process-leads] Discovered missing website: ${foundUrl}`);
           finalWebsite = foundUrl;
