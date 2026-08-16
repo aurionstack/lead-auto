@@ -25,32 +25,40 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult } from '@/lib/types';
 
 const BATCH_SIZE = 10;
 
-// AI System Prompt — scores high-ticket B2B alignment
-const SYSTEM_PROMPT = `You are an expert B2B sales intelligence analyst specializing in identifying high-value outreach opportunities.
+const SYSTEM_PROMPT = `You are an expert B2B sales intelligence analyst for "Aurion Stack".
+We sell premium international tech partnerships (NOT basic local agency services).
 
-Analyze the provided Google Maps business data and evaluate its alignment with high-ticket B2B sales targets, specifically:
-- Self-drive fleet operators (car rentals, chauffeur services)
-- Yacht and boat rental businesses
-- Luxury villa managers and holiday property operators
-- Premium hospitality businesses with significant review presence but no digital marketing infrastructure
+Our Core Offerings:
+1. Generative Engine Optimization (GEO): Next.js SSR, Structured Schema (replaces Local SEO).
+2. Signal-Based AI Revenue Operations: Custom Python Scrapers, Clay, Apollo (replaces Cold Email Spam).
+3. Autonomous AI Workflows & RAG Systems: OpenAI APIs, Supabase Vector, LangChain (replaces basic Chatbots).
+4. Full-Stack SaaS MVPs & Interactive 3D: Next.js, React, Tailwind, Three.js, GSAP (replaces basic Web Design).
 
-Scoring criteria (0–100):
-- High review count with no website = very high score (untapped digital potential)
-- Premium/luxury category = bonus points
-- High rating (4.5+) = signals quality business worth investing in
-- Phone available = actionable lead
-- Low score for businesses with polished existing digital presence
+Analyze the provided business data and website content.
+Scoring criteria (0-100):
+- No website or missing social handles = 95+ score (Prime target for Full-Stack MVP or GEO).
+- Has website but poor design, bad SEO, or missing clear call to actions = 85+ score.
+- High reviews but no website = 100 score (Massive untapped potential).
+
+CRITICAL TONE RULE: 
+While we use high-end tech (Next.js, RAG, etc.), the business owners reading these emails are NOT technical. You MUST translate our tech offerings into simple, user-friendly business outcomes. 
+(Example: Instead of saying "We will build a RAG system", say "We can build an AI assistant that automatically answers your customers' questions 24/7".)
+
+WEBSITE PROBLEM RULE:
+If they have a website, you MUST identify a very specific problem with it based on the scraped content (e.g., "I noticed your site doesn't have a clear way for visitors to book a call", or "Your website's headings are missing key SEO terms for your industry"). Mention this naturally in the reasoning and pitch.
 
 Return ONLY a valid JSON object with this exact schema — no markdown, no explanation, no preamble:
 {
   "score": <integer 0-100>,
-  "reasoning": "<2 sentences: structural critique of their digital gap and B2B sales alignment>",
-  "pitch": "<3 sentences: high-converting personalized WhatsApp message pitching a Click-to-WhatsApp template system, mentioning their exact rating and review count>"
+  "reasoning": "<2 sentences: Critique their missing/poor digital presence (mention a SPECIFIC problem if they have a website) and map it to a specific Aurion Stack tech solution>",
+  "pitch_whatsapp": "<3 sentences: Friendly, high-converting WhatsApp hook focusing on the BUSINESS OUTCOME of our software (more revenue, less manual work)>",
+  "pitch_email": "<3 sentences: Professional email hook pitching the VALUE of our tech stack without using confusing jargon>"
 }`;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -110,12 +118,45 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     try {
       console.log(`[cron/process-leads] Scoring lead: ${lead.id} (${lead.business_name})`);
 
-      // Build the lead data string for the AI prompt
-      const leadDataPrompt = buildLeadPrompt(lead);
+      let enrichedData = '';
+      let enrichedEmail = null;
+      let finalWebsite = lead.website;
 
-      // ── 5a. Call Gemini 2.5 Flash ────────────────────────
+      // Search for missing website using DuckDuckGo HTML proxy
+      if (!finalWebsite) {
+        console.log(`[cron/process-leads] No website found on Maps. Searching web for ${lead.business_name}...`);
+        const foundUrl = await findMissingWebsite(lead.business_name, lead.location || lead.address || '');
+        if (foundUrl) {
+          console.log(`[cron/process-leads] Discovered missing website: ${foundUrl}`);
+          finalWebsite = foundUrl;
+          // Note: we don't update the DB with the found website immediately here, but we could.
+        }
+      }
+
+      if (finalWebsite) {
+        console.log(`[cron/process-leads] Scraping website data for ${finalWebsite} via Jina Reader`);
+        const websiteText = await fetchWebsiteText(finalWebsite);
+        
+        if (websiteText.includes('Failed to load') || websiteText.includes('failed to load')) {
+          enrichedData = `- Website Analysis: Their website exists but could not be scraped by our bot (likely anti-bot protection or a slow server). Do NOT mention that their website failed to load. Assume they have a basic website, and pitch them on advanced AI RevOps, Automation, or SEO systems instead.\n`;
+        } else {
+          enrichedData = `- Scraped Website Content (Markdown): "${websiteText}"\n`;
+        }
+
+        const domain = finalWebsite.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+        enrichedEmail = 'owner@' + domain;
+        enrichedData += `- Contact Email Found: ${enrichedEmail}\n`;
+      } else {
+        console.log(`[cron/process-leads] No website found online for ${lead.business_name}. High priority target.`);
+        enrichedData = '- Website Analysis: NO WEBSITE OR DIGITAL PRESENCE FOUND. Massive opportunity for a Full-Stack MVP.\n';
+      }
+
+      // Build the lead data string for the AI prompt
+      const leadDataPrompt = buildLeadPrompt(lead, enrichedData);
+
+      // ── 5a. Call Gemini 3.5 Flash Lite ────────────────────────
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash-lite',
         contents: [{ role: 'user', parts: [{ text: leadDataPrompt }] }],
         config: {
           systemInstruction: SYSTEM_PROMPT,
@@ -138,7 +179,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         .update({
           opportunity_score: aiResult.score,
           ai_reasoning: aiResult.reasoning,
-          drafted_pitch: aiResult.pitch,
+          drafted_pitch: aiResult.pitch_whatsapp,
+          drafted_email_pitch: aiResult.pitch_email,
+          email: enrichedEmail,
         })
         .eq('id', lead.id);
 
@@ -175,7 +218,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 // ── Helper: Build human-readable lead data for the AI prompt ──
-function buildLeadPrompt(lead: Lead): string {
+function buildLeadPrompt(lead: Lead, enrichedData: string = ''): string {
   return `
 Business Profile to Analyze:
 - Business Name: ${lead.business_name ?? 'Unknown'}
@@ -184,9 +227,10 @@ Business Profile to Analyze:
 - Total Reviews: ${lead.review_count ?? 'N/A'}
 - Address: ${lead.address ?? 'Not provided'}
 - Phone: ${lead.phone ?? 'Not provided'}
+- Website: ${lead.website ?? 'Not provided'}
 - Google Maps URL: ${lead.google_maps_url ?? 'Not provided'}
-
-Analyze this business for B2B high-ticket sales potential and respond with a JSON object only.
+${enrichedData}
+Analyze this business for custom software engineering sales potential and respond with a JSON object only.
 `.trim();
 }
 
@@ -212,7 +256,8 @@ function parseAIResponse(rawText: string): AIResult {
     parsed === null ||
     typeof (parsed as Record<string, unknown>).score !== 'number' ||
     typeof (parsed as Record<string, unknown>).reasoning !== 'string' ||
-    typeof (parsed as Record<string, unknown>).pitch !== 'string'
+    typeof (parsed as Record<string, unknown>).pitch_whatsapp !== 'string' ||
+    typeof (parsed as Record<string, unknown>).pitch_email !== 'string'
   ) {
     throw new Error(
       `Gemini response missing required fields: ${JSON.stringify(parsed).slice(0, 200)}`
@@ -225,4 +270,68 @@ function parseAIResponse(rawText: string): AIResult {
   result.score = Math.max(0, Math.min(100, Math.round(result.score)));
 
   return result;
+}
+
+// ── Helper: Find missing website via DuckDuckGo HTML ───────────
+async function findMissingWebsite(businessName: string, location: string): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(`${businessName} ${location} official website`);
+    const res = await fetch(`https://html.duckduckgo.com/html/?q=${query}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    });
+    if (!res.ok) return null;
+    
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    
+    // Find the first organic result URL
+    let foundUrl: string | null = null;
+    $('.result__url').each((_, el) => {
+      const url = $(el).attr('href');
+      if (url && url.includes('uddg=')) {
+        // Extract from DuckDuckGo redirect format: //duckduckgo.com/l/?uddg=https%3A%2F%2F...
+        const decoded = decodeURIComponent(url.split('uddg=')[1].split('&')[0]);
+        // Filter out directories and social media if we want strict websites
+        if (!decoded.includes('facebook.com') && !decoded.includes('instagram.com') && !decoded.includes('justdial') && !decoded.includes('yelp.com')) {
+          foundUrl = decoded;
+          return false; // break loop
+        }
+      }
+    });
+    
+    return foundUrl;
+  } catch (err) {
+    console.error('[cron] DuckDuckGo search failed:', err);
+    return null;
+  }
+}
+
+// ── Helper: Scrape website using Jina Reader ───────────────────
+async function fetchWebsiteText(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds max
+
+  try {
+    // Jina Reader converts any URL to structured Markdown
+    const res = await fetch(`https://r.jina.ai/${url}`, { 
+      signal: controller.signal, 
+      headers: { 
+        'Accept': 'text/plain',
+        'X-Return-Format': 'markdown' 
+      } 
+    });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) return 'Failed to load website via Jina (returned error code).';
+    
+    let text = await res.text();
+    
+    // Truncate to first 4000 chars to avoid overwhelming Gemini while keeping structure
+    if (text.length > 4000) text = text.substring(0, 4000) + '\n...[TRUNCATED]';
+    
+    return text || 'Website loaded but no readable text found.';
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    return 'Website failed to load or timed out.';
+  }
 }

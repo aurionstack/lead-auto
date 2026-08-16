@@ -58,7 +58,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  console.log(`[webhook/apify] Received dataset ID: ${datasetId}`);
+  const { searchParams } = new URL(request.url);
+  const jobId = searchParams.get('jobId');
+
+  console.log(`[webhook/apify] Received dataset ID: ${datasetId}, jobId: ${jobId}`);
 
   // ── 3. Fetch items from Apify Dataset API ──────────────────
   // Limit to 1000 items per webhook call to bound execution time.
@@ -102,6 +105,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 
   if (validItems.length === 0) {
+    if (jobId) {
+      await supabaseAdmin.from('scrape_jobs').update({ status: 'completed', results_count: 0 }).eq('id', jobId);
+    }
     return NextResponse.json({
       success: true,
       message: 'No leads with phone numbers found.',
@@ -118,6 +124,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     rating: item.totalScore ?? null,
     review_count: item.reviewsCount ?? null,
     address: item.address ?? null,
+    website: item.website ?? null,
+    scrape_job_id: jobId || null,
     // opportunity_score defaults to 0 (unscored)
     // status defaults to 'new'
     // ai_reasoning, drafted_pitch are set by the cron worker
@@ -148,6 +156,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   console.log(
     `[webhook/apify] Successfully upserted ${upsertedCount} leads. AI scoring deferred to cron.`
   );
+
+  // Update the scrape job status
+  if (jobId) {
+    await supabaseAdmin
+      .from('scrape_jobs')
+      .update({ status: 'completed', results_count: upsertedCount })
+      .eq('id', jobId);
+  }
 
   // ── 7. Return 200 immediately — Apify expects a fast response ─
   return NextResponse.json({

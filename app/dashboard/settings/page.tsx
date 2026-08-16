@@ -1,29 +1,29 @@
 // ============================================================
-// app/dashboard/page.tsx — Dashboard Server Component (Batches List)
+// app/dashboard/settings/page.tsx
 // ============================================================
 
 import { Suspense } from 'react';
 import { supabaseAdmin } from '@/lib/supabase';
-import type { ScrapeJob } from '@/lib/types';
-import BatchListClient from '@/components/dashboard/BatchListClient';
+import type { SearchConfig } from '@/lib/types';
+import SearchConfigsClient from '@/components/dashboard/SearchConfigsClient';
 import { Loader2 } from 'lucide-react';
 
-async function fetchJobs(): Promise<ScrapeJob[]> {
+async function fetchConfigs(): Promise<SearchConfig[]> {
   const { data, error } = await supabaseAdmin
-    .from('scrape_jobs')
+    .from('search_configs')
     .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[dashboard] Supabase fetch error:', error.message);
+    console.error('[settings] Supabase fetch error:', error.message);
     return [];
   }
 
-  return (data ?? []) as ScrapeJob[];
+  return (data ?? []) as SearchConfig[];
 }
 
-export default async function DashboardPage() {
-  const jobs = await fetchJobs();
+export default async function SettingsPage() {
+  const configs = await fetchConfigs();
 
   return (
     <Suspense fallback={
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
         <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
       </div>
     }>
-      <BatchListClient jobs={jobs} />
+      <SearchConfigsClient configs={configs} />
     </Suspense>
   );
 }

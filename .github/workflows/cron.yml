@@ -1,0 +1,32 @@
+name: Autonomous Lead System Loop
+
+on:
+  schedule:
+    # Run every 10 minutes
+    - cron: '*/10 * * * *'
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  run-cron-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping process-leads (Every 10 mins)
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/process-leads" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Ping auto-push (Every 10 mins)
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/auto-push" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  run-daily-scrape:
+    runs-on: ubuntu-latest
+    # Run only at midnight UTC (0 0 * * *)
+    if: github.event.schedule == '0 0 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Ping auto-scrape (Daily)
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/auto-scrape" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
