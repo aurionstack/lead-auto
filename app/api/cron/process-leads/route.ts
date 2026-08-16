@@ -29,7 +29,8 @@ import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult } from '@/lib/types';
 
-const BATCH_SIZE = 10;
+export const maxDuration = 60;
+const BATCH_SIZE = 5;
 
 const SYSTEM_PROMPT = `You are an expert B2B sales intelligence analyst for "Aurion Stack".
 We sell premium international tech partnerships (NOT basic local agency services).
@@ -197,6 +198,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     } catch (err) {
       // Per-lead error isolation — one bad lead doesn't kill the batch
       console.error(`[cron/process-leads] Error processing lead ${lead.id}:`, err);
+      
+      // Mark as -1 so we don't infinitely retry a broken lead
+      await supabaseAdmin.from('leads').update({ opportunity_score: -1 }).eq('id', lead.id);
+      
       results.push({ id: lead.id, status: 'error' });
     }
   }

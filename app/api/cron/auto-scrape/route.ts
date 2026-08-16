@@ -7,6 +7,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
+export const maxDuration = 60;
+
 const APIFY_ACTOR_ID = 'compass~crawler-google-places';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 

@@ -22,6 +22,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { ApifyLeadItem } from '@/lib/types';
 
+export const maxDuration = 60;
+
 // Apify Dataset API base URL
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 

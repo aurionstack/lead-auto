@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead } from '@/lib/types';
 
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // 1. Verify CRON_SECRET authorization
   const cronSecret = process.env.CRON_SECRET;
