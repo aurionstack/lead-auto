@@ -59,6 +59,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
   const highPotential = leads.filter((l) => (l.opportunity_score ?? 0) >= 70).length;
   const contacted = leads.filter((l) => l.status === 'contacted').length;
   const totalActive = leads.length;
+  const pendingProcessing = leads.filter((l) => l.opportunity_score === null || l.opportunity_score === 0).length;
 
   // ── API call helper ──────────────────────────────────────────
   const updateLead = useCallback(
@@ -266,11 +267,11 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
 
           <button
             onClick={handleTriggerAI}
-            disabled={isTriggeringAI}
+            disabled={isTriggeringAI || pendingProcessing === 0}
             className="flex items-center gap-1.5 text-xs bg-indigo-900/40 hover:bg-indigo-800/60 text-indigo-300 border border-indigo-800/50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
           >
             {isTriggeringAI ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
-            {isTriggeringAI ? 'Processing...' : 'Run AI'}
+            {isTriggeringAI ? 'Processing...' : pendingProcessing > 0 ? `Run AI (${pendingProcessing} Pending)` : 'Queue Empty'}
           </button>
 
           <div className="w-px h-4 bg-slate-800 hidden sm:block"></div>
@@ -479,6 +480,61 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                   </a>
                 )}
               </div>
+
+              {/* Email Discovery Bank */}
+              {(selectedLead.email || (selectedLead.alternative_emails && selectedLead.alternative_emails.length > 0)) && (
+                <div className="rounded-xl bg-slate-900/60 border border-slate-800/60 p-5 shadow-inner">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Mail className="w-4 h-4 text-sky-400" />
+                    <h3 className="text-sm font-semibold text-white">Email Discovery Bank</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Primary Selected Email */}
+                    {selectedLead.email && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-sky-950/20 border border-sky-900/40 shadow-sm transition-all hover:bg-sky-950/30">
+                        <div className="flex items-center gap-2 text-sm text-sky-300 font-medium truncate">
+                          <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+                          <span className="truncate">{selectedLead.email}</span>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md bg-sky-900/50 text-sky-200 border border-sky-800/60 shadow-sm ml-2">
+                          Primary Target
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Fallback Emails */}
+                    {selectedLead.alternative_emails && selectedLead.alternative_emails.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 px-1">
+                          Fallback Emails Banked ({selectedLead.alternative_emails.length})
+                        </p>
+                        <div className="grid gap-2">
+                          {selectedLead.alternative_emails.map((alt: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/60 transition-colors">
+                              <span className="text-sm text-slate-300 truncate font-medium">{alt.email}</span>
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
+                                {alt.confidence && (
+                                  <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-md border shadow-sm ${
+                                    alt.confidence === 'high' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50' :
+                                    alt.confidence === 'medium' ? 'bg-amber-950/40 text-amber-400 border-amber-900/50' :
+                                    'bg-slate-800 text-slate-400 border-slate-700'
+                                  }`}>
+                                    {alt.confidence}
+                                  </span>
+                                )}
+                                <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-md bg-indigo-950/40 text-indigo-400 border border-indigo-900/50 shadow-sm">
+                                  {alt.source || 'Scraper'}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* AI Reasoning Block */}
               {selectedLead.ai_reasoning ? (
