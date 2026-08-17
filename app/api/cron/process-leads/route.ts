@@ -28,6 +28,9 @@ import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult } from '@/lib/types';
+import { findEmailWithApollo } from '@/lib/apollo';
+import { findEmailWithHunter } from '@/lib/hunter';
+import { findEmailWithRegex } from '@/lib/email-parser';
 
 export const maxDuration = 60;
 const BATCH_SIZE = 5;
@@ -40,7 +43,13 @@ We sell three core services. You MUST dynamically choose the best service to pit
 2. SEO & Website Redesign: Pitch this if they have a website, but it is extremely slow, looks incredibly outdated, or lacks proper local SEO keywords on the homepage.
 3. AI Lead Generation & Automation: Pitch this if they have a decent website. Offer to build an AI system that scrapes their exact target market (e.g. medical clinics for a commercial cleaner) and automatically sends 1,000 highly targeted B2B emails per month to book them meetings.
 
-Analyze the provided business data and website content.
+Analyze the provided business data, website content, and the pool of discovered email addresses.
+
+Email Selection Rule:
+- Review the pool of discovered emails.
+- Select the SINGLE BEST email for B2B outreach (prioritize human names, CEO, Founder, or decision-maker titles over generic info@ emails).
+- If no good emails exist in the pool, return null.
+
 Scoring criteria (0-100):
 - No website or missing digital presence = 95+ score (Prime target for Web Design).
 - Has website but extremely outdated design or bad SEO = 90+ score (Prime target for Redesign/SEO).
@@ -58,7 +67,8 @@ Return ONLY a valid JSON object with this exact schema — no markdown, no expla
   "score": <integer 0-100>,
   "reasoning": "<2 sentences: Critique their digital presence (mention a SPECIFIC problem if they have a website) and map it to Web Design, SEO, or AI Lead Gen>",
   "pitch_whatsapp": "<3 sentences: Friendly, high-converting WhatsApp hook focusing on the BUSINESS OUTCOME of our software (more revenue, less manual work)>",
-  "pitch_email": "<3 sentences: Professional email hook pitching the VALUE of our tech stack without using confusing jargon>"
+  "pitch_email": "<3 sentences: Professional email hook pitching the VALUE of our tech stack without using confusing jargon>",
+  "selected_email": "<selected email string or null>"
 }`;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -121,6 +131,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       let enrichedData = '';
       let enrichedEmail = null;
       let finalWebsite = lead.website;
+      let allFoundEmails: any[] = [];
 
       // Search for missing website using DuckDuckGo HTML proxy
       if (!finalWebsite) {
@@ -144,11 +155,44 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         const domain = finalWebsite.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-        enrichedEmail = 'owner@' + domain;
-        enrichedData += `- Contact Email Found: ${enrichedEmail}\n`;
+        
+        // ── CONCURRENT EMAIL DISCOVERY ──
+        console.log(`[cron/process-leads] Running concurrent email discovery for ${domain}...`);
+        
+        const [apolloResult, hunterResult] = await Promise.allSettled([
+          findEmailWithApollo(domain),
+          findEmailWithHunter(domain)
+        ]);
+        
+        const regexResult = findEmailWithRegex(websiteText);
+        
+        // Pool and deduplicate
+        const emailPool = new Map();
+        
+        if (apolloResult.status === 'fulfilled' && apolloResult.value) {
+          apolloResult.value.forEach(e => emailPool.set(e.email.toLowerCase(), e));
+        }
+        if (hunterResult.status === 'fulfilled' && hunterResult.value) {
+          hunterResult.value.forEach(e => {
+            if (!emailPool.has(e.email.toLowerCase())) emailPool.set(e.email.toLowerCase(), e);
+          });
+        }
+        regexResult.forEach(e => {
+          if (!emailPool.has(e.email.toLowerCase())) emailPool.set(e.email.toLowerCase(), e);
+        });
+
+        allFoundEmails = Array.from(emailPool.values());
+        
+        if (allFoundEmails.length > 0) {
+          console.log(`[cron/process-leads] SUCCESS: Pooled ${allFoundEmails.length} unique emails for ${domain}`);
+          enrichedData += `- Discovered Email Pool: ${JSON.stringify(allFoundEmails)}\n`;
+        } else {
+          console.log(`[cron/process-leads] FAILED: No valid emails found in any discovery method for ${domain}.`);
+          enrichedData += `- Discovered Email Pool: []\n`;
+        }
       } else {
         console.log(`[cron/process-leads] No website found online for ${lead.business_name}. High priority target.`);
-        enrichedData = '- Website Analysis: NO WEBSITE OR DIGITAL PRESENCE FOUND. Massive opportunity for a Full-Stack MVP.\n';
+        enrichedData = '- Website Analysis: NO WEBSITE OR DIGITAL PRESENCE FOUND. Massive opportunity for a Full-Stack MVP.\n- Discovered Email Pool: []\n';
       }
 
       // Build the lead data string for the AI prompt
@@ -174,6 +218,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const aiResult = parseAIResponse(rawText);
 
       // ── 5c. Update Supabase row with AI results ───────────
+      let alternativeEmails: any[] = [];
+      if (allFoundEmails.length > 0) {
+        if (aiResult.selected_email) {
+          alternativeEmails = allFoundEmails.filter(e => e.email.toLowerCase() !== aiResult.selected_email?.toLowerCase());
+        } else {
+          alternativeEmails = allFoundEmails;
+        }
+      }
+
       const { error: updateError } = await supabaseAdmin
         .from('leads')
         .update({
@@ -181,7 +234,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           ai_reasoning: aiResult.reasoning,
           drafted_pitch: aiResult.pitch_whatsapp,
           drafted_email_pitch: aiResult.pitch_email,
-          email: enrichedEmail,
+          email: aiResult.selected_email || null,
+          alternative_emails: alternativeEmails.length > 0 ? alternativeEmails : null,
         })
         .eq('id', lead.id);
 
@@ -311,31 +365,53 @@ async function findMissingWebsite(businessName: string, location: string): Promi
 }
 
 // ── Helper: Scrape website using Jina Reader ───────────────────
-async function fetchWebsiteText(url: string): Promise<string> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds max
+async function fetchWebsiteText(baseUrl: string): Promise<string> {
+  const cleanBaseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+  const urlsToScrape = [
+    cleanBaseUrl,
+    `${cleanBaseUrl}/contact`,
+    `${cleanBaseUrl}/about`
+  ];
 
-  try {
-    // Jina Reader converts any URL to structured Markdown
-    const res = await fetch(`https://r.jina.ai/${url}`, { 
-      signal: controller.signal, 
-      headers: { 
-        'Accept': 'text/plain',
-        'X-Return-Format': 'markdown' 
-      } 
-    });
-    clearTimeout(timeoutId);
-    
-    if (!res.ok) return 'Failed to load website via Jina (returned error code).';
-    
-    let text = await res.text();
-    
-    // Truncate to first 4000 chars to avoid overwhelming Gemini while keeping structure
-    if (text.length > 4000) text = text.substring(0, 4000) + '\n...[TRUNCATED]';
-    
-    return text || 'Website loaded but no readable text found.';
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    return 'Website failed to load or timed out.';
+  console.log(`[cron/process-leads] Deep scraping ${urlsToScrape.length} paths for ${cleanBaseUrl}...`);
+
+  const scrapePromises = urlsToScrape.map(async (url) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds max
+
+    try {
+      const res = await fetch(`https://r.jina.ai/${url}`, { 
+        signal: controller.signal, 
+        headers: { 
+          'Accept': 'text/plain',
+          'X-Return-Format': 'markdown' 
+        } 
+      });
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) return null;
+      return await res.text();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      return null;
+    }
+  });
+
+  const results = await Promise.allSettled(scrapePromises);
+  
+  let combinedText = '';
+  results.forEach(result => {
+    if (result.status === 'fulfilled' && result.value) {
+      combinedText += result.value + '\n\n';
+    }
+  });
+
+  if (!combinedText.trim()) {
+    return 'Website failed to load or no readable text found on any pages.';
   }
+
+  // Truncate to first 6000 chars to avoid overwhelming Gemini but give enough context from all 3 pages
+  if (combinedText.length > 6000) combinedText = combinedText.substring(0, 6000) + '\n...[TRUNCATED]';
+  
+  return combinedText;
 }

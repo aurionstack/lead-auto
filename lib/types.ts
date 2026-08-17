@@ -33,6 +33,7 @@ export interface Lead {
   drafted_email_pitch: string | null;
   website: string | null;
   email: string | null;
+  alternative_emails: any[] | null;
   status: LeadStatus;
   scrape_job_id: string | null;
   created_at: string;
@@ -44,6 +45,7 @@ export interface AIResult {
   reasoning: string;
   pitch_whatsapp: string;
   pitch_email: string;
+  selected_email: string | null;
 }
 
 // Payload shape for the Apify dataset item
