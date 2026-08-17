@@ -33,7 +33,7 @@ import { findEmailWithHunter } from '@/lib/hunter';
 import { findEmailWithRegex } from '@/lib/email-parser';
 
 export const maxDuration = 60;
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 2;
 
 const SYSTEM_PROMPT = `You are an expert B2B Growth Consultant for "Aurion Stack".
 Our target clients are high-end, non-technical B2B businesses (e.g. Commercial Cleaning, Corporate Event Planners, Wholesale Distributors, Managed IT).
