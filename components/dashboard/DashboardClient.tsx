@@ -415,47 +415,47 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
 
               {/* Info Grid */}
               <div className="grid grid-cols-2 gap-3">
-                {selectedLead.rating && (
+                {selectedLead.rating ? (
                   <InfoTile
                     icon={<Star className="w-4 h-4 text-amber-400" />}
                     label="Rating"
                     value={`${selectedLead.rating} ★`}
                   />
-                )}
-                {selectedLead.review_count !== null && (
+                ) : null}
+                {selectedLead.review_count !== null ? (
                   <InfoTile
                     icon={<Hash className="w-4 h-4 text-indigo-400" />}
                     label="Reviews"
                     value={selectedLead.review_count.toLocaleString()}
                   />
-                )}
-                {selectedLead.phone && (
+                ) : null}
+                {!!selectedLead.phone ? (
                   <InfoTile
                     icon={<Phone className="w-4 h-4 text-emerald-400" />}
                     label="Phone"
                     value={selectedLead.phone}
                   />
-                )}
-                {selectedLead.address && (
+                ) : null}
+                {!!selectedLead.address ? (
                   <InfoTile
                     icon={<MapPin className="w-4 h-4 text-rose-400" />}
                     label="Address"
                     value={selectedLead.address}
                     className={selectedLead.email ? '' : 'col-span-2'}
                   />
-                )}
-                {selectedLead.email && (
+                ) : null}
+                {!!selectedLead.email ? (
                   <InfoTile
                     icon={<Mail className="w-4 h-4 text-sky-400" />}
                     label="Email"
                     value={selectedLead.email}
                   />
-                )}
+                ) : null}
               </div>
 
               {/* External Links */}
               <div className="flex flex-col gap-2">
-                {selectedLead.website && (
+                {!!selectedLead.website ? (
                   <a
                     href={selectedLead.website.startsWith('http') ? selectedLead.website : `https://${selectedLead.website}`}
                     target="_blank"
@@ -466,8 +466,8 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                     Visit Website
                     <ChevronRight className="w-3 h-3" />
                   </a>
-                )}
-                {selectedLead.google_maps_url && (
+                ) : null}
+                {!!selectedLead.google_maps_url ? (
                   <a
                     href={selectedLead.google_maps_url}
                     target="_blank"
@@ -478,11 +478,11 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                     View on Google Maps
                     <ChevronRight className="w-3 h-3" />
                   </a>
-                )}
+                ) : null}
               </div>
 
               {/* Email Discovery Bank */}
-              {(selectedLead.email || (selectedLead.alternative_emails && selectedLead.alternative_emails.length > 0)) && (
+              {(!!selectedLead.email || (selectedLead.alternative_emails && selectedLead.alternative_emails.length > 0)) ? (
                 <div className="rounded-xl bg-slate-900/60 border border-slate-800/60 p-5 shadow-inner">
                   <div className="flex items-center gap-2 mb-4">
                     <Mail className="w-4 h-4 text-sky-400" />
@@ -491,7 +491,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                   
                   <div className="space-y-4">
                     {/* Primary Selected Email */}
-                    {selectedLead.email && (
+                    {!!selectedLead.email ? (
                       <div className="flex items-center justify-between p-3 rounded-lg bg-sky-950/20 border border-sky-900/40 shadow-sm transition-all hover:bg-sky-950/30">
                         <div className="flex items-center gap-2 text-sm text-sky-300 font-medium truncate">
                           <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
@@ -501,10 +501,10 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                           Primary Target
                         </span>
                       </div>
-                    )}
+                    ) : null}
 
                     {/* Fallback Emails */}
-                    {selectedLead.alternative_emails && selectedLead.alternative_emails.length > 0 && (
+                    {(selectedLead.alternative_emails && selectedLead.alternative_emails.length > 0) ? (
                       <div>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 px-1">
                           Fallback Emails Banked ({selectedLead.alternative_emails.length})
@@ -514,7 +514,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                             <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/60 transition-colors">
                               <span className="text-sm text-slate-300 truncate font-medium">{alt.email}</span>
                               <div className="flex items-center gap-2 shrink-0 ml-2">
-                                {alt.confidence && (
+                                {alt.confidence ? (
                                   <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-md border shadow-sm ${
                                     alt.confidence === 'high' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50' :
                                     alt.confidence === 'medium' ? 'bg-amber-950/40 text-amber-400 border-amber-900/50' :
@@ -522,7 +522,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                                   }`}>
                                     {alt.confidence}
                                   </span>
-                                )}
+                                ) : null}
                                 <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-md bg-indigo-950/40 text-indigo-400 border border-indigo-900/50 shadow-sm">
                                   {alt.source || 'Scraper'}
                                 </span>
@@ -531,10 +531,10 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                           ))}
                         </div>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* AI Reasoning Block */}
               {selectedLead.ai_reasoning ? (

@@ -40,8 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Build the webhook URL so Apify calls back to our system when done
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  const appUrl = request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://lead-auto.vercel.app';
 
   // Build search queries — e.g. "restaurants in Mumbai"
   const searchQuery = `${category} in ${location}`;
