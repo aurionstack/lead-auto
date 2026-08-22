@@ -67,10 +67,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   console.log(`[cron/auto-scrape] Triggering Apify for: "${searchQuery}"`);
 
+  const webhooks = [
+    {
+      eventTypes: ['ACTOR.RUN.SUCCEEDED'],
+      requestUrl: webhookUrl,
+      headersTemplate: "{\n  \"ngrok-skip-browser-warning\": \"true\"\n}"
+    }
+  ];
+  const webhooksBase64 = Buffer.from(JSON.stringify(webhooks)).toString('base64');
+
   // 4. Call Apify
   try {
     const apifyResponse = await fetch(
-      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?token=${apifyToken}`,
+      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?token=${apifyToken}&webhooks=${encodeURIComponent(webhooksBase64)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,13 +87,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           searchStringsArray: [searchQuery],
           maxCrawledPlacesPerSearch: maxResults,
           language: 'en',
-          webhooks: [
-            {
-              eventTypes: ['ACTOR.RUN.SUCCEEDED'],
-              requestUrl: webhookUrl,
-              headersTemplate: "{\n  \"ngrok-skip-browser-warning\": \"true\"\n}"
-            },
-          ],
         }),
       }
     );

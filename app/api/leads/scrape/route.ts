@@ -63,10 +63,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   console.log(`[scrape] Triggering Apify for: "${searchQuery}", max: ${maxResults}, jobId: ${jobId}`);
 
+  const webhooks = [
+    {
+      eventTypes: ['ACTOR.RUN.SUCCEEDED'],
+      requestUrl: webhookUrl,
+      headersTemplate: "{\n  \"ngrok-skip-browser-warning\": \"true\"\n}"
+    }
+  ];
+  const webhooksBase64 = Buffer.from(JSON.stringify(webhooks)).toString('base64');
+
   // Call Apify to start a new actor run
   try {
     const apifyResponse = await fetch(
-      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?token=${apifyToken}`,
+      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?token=${apifyToken}&webhooks=${encodeURIComponent(webhooksBase64)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,14 +83,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           searchStringsArray: [searchQuery],
           maxCrawledPlacesPerSearch: maxResults,
           language: 'en',
-          // Webhook: Apify will POST to this URL when the run finishes
-          webhooks: [
-            {
-              eventTypes: ['ACTOR.RUN.SUCCEEDED'],
-              requestUrl: webhookUrl,
-              headersTemplate: "{\n  \"ngrok-skip-browser-warning\": \"true\"\n}"
-            },
-          ],
         }),
       }
     );
