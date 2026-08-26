@@ -9,6 +9,14 @@
 export type LeadStatus = 'new' | 'approved' | 'contacted' | 'rejected';
 export type ScrapeStatus = 'scraping' | 'completed' | 'failed';
 
+export interface DiscoveredEmail {
+  email: string;
+  source: string;
+  confidence?: string;
+  name?: string;
+  title?: string;
+}
+
 export interface ScrapeJob {
   id: string;
   location: string;

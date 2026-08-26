@@ -1,7 +1,7 @@
 // ============================================================
 // lib/hunter.ts
 // ============================================================
-import { DiscoveredEmail } from './apollo';
+import { DiscoveredEmail } from './types';
 
 export async function findEmailWithHunter(domain: string): Promise<DiscoveredEmail[]> {
   const apiKey = process.env.HUNTER_API_KEY;

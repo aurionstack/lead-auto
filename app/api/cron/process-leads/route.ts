@@ -28,7 +28,6 @@ import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult } from '@/lib/types';
-import { findEmailWithApollo } from '@/lib/apollo';
 import { findEmailWithHunter } from '@/lib/hunter';
 import { findEmailWithRegex } from '@/lib/email-parser';
 
@@ -159,8 +158,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // ── CONCURRENT EMAIL DISCOVERY ──
         console.log(`[cron/process-leads] Running concurrent email discovery for ${domain}...`);
         
-        const [apolloResult, hunterResult] = await Promise.allSettled([
-          findEmailWithApollo(domain),
+        const [hunterResult] = await Promise.allSettled([
           findEmailWithHunter(domain)
         ]);
         
@@ -169,9 +167,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // Pool and deduplicate
         const emailPool = new Map();
         
-        if (apolloResult.status === 'fulfilled' && apolloResult.value) {
-          apolloResult.value.forEach(e => emailPool.set(e.email.toLowerCase(), e));
-        }
         if (hunterResult.status === 'fulfilled' && hunterResult.value) {
           hunterResult.value.forEach(e => {
             if (!emailPool.has(e.email.toLowerCase())) emailPool.set(e.email.toLowerCase(), e);

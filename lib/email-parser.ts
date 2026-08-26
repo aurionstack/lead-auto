@@ -1,7 +1,7 @@
 // ============================================================
 // lib/email-parser.ts
 // ============================================================
-import { DiscoveredEmail } from './apollo';
+import { DiscoveredEmail } from './types';
 
 /**
  * Scans raw Markdown text for email addresses using a robust regex.

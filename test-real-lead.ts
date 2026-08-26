@@ -2,7 +2,6 @@ import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 
 import { supabaseAdmin } from './lib/supabase';
-import { findEmailWithApollo } from './lib/apollo';
 import { findEmailWithHunter } from './lib/hunter';
 import { findEmailWithRegex } from './lib/email-parser';
 
@@ -73,11 +72,10 @@ async function run() {
   const domain = finalWebsite.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
   
   console.log(`\n🚀 [TEST] Running concurrent email discovery for ${domain}...`);
-  console.log(`1. Firing Apollo and Hunter APIs concurrently...`);
+  console.log(`1. Firing Hunter API...`);
   console.log(`2. Scraping website text simultaneously via Jina Reader...`);
   
-  const [apolloResult, hunterResult, websiteText] = await Promise.allSettled([
-    findEmailWithApollo(domain),
+  const [hunterResult, websiteText] = await Promise.allSettled([
     findEmailWithHunter(domain),
     fetchWebsiteText(finalWebsite)
   ]);
@@ -87,13 +85,6 @@ async function run() {
   
   console.log(`\n⚙️ [TEST] Aggregating and deduplicating results...`);
   const emailPool = new Map();
-  
-  if (apolloResult.status === 'fulfilled' && apolloResult.value) {
-    console.log(`   -> Apollo found: ${apolloResult.value.length} emails`);
-    apolloResult.value.forEach(e => emailPool.set(e.email.toLowerCase(), e));
-  } else {
-    console.log(`   -> Apollo failed:`, apolloResult);
-  }
   
   if (hunterResult.status === 'fulfilled' && hunterResult.value) {
     console.log(`   -> Hunter found: ${hunterResult.value.length} emails`);

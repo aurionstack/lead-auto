@@ -1,7 +1,6 @@
 import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 
-import { findEmailWithApollo } from './lib/apollo';
 import { findEmailWithHunter } from './lib/hunter';
 import { findEmailWithRegex } from './lib/email-parser';
 
@@ -20,11 +19,10 @@ async function run() {
   console.log(`------------------------------------------------------`);
   
   // 1. Concurrent Fetch
-  console.log(`1. Firing Apollo and Hunter APIs concurrently...`);
+  console.log(`1. Firing Hunter API...`);
   console.log(`2. Scraping website text simultaneously...`);
   
-  const [apolloResult, hunterResult] = await Promise.allSettled([
-    findEmailWithApollo(domain),
+  const [hunterResult] = await Promise.allSettled([
     findEmailWithHunter(domain)
   ]);
   
@@ -33,13 +31,6 @@ async function run() {
   // 2. Aggregation Pool
   console.log(`\n⚙️ [TEST] Aggregating and deduplicating results...`);
   const emailPool = new Map();
-  
-  if (apolloResult.status === 'fulfilled' && apolloResult.value) {
-    console.log(`   -> Apollo found: ${apolloResult.value.length} emails`);
-    apolloResult.value.forEach(e => emailPool.set(e.email.toLowerCase(), e));
-  } else {
-    console.log(`   -> Apollo failed:`, apolloResult);
-  }
   
   if (hunterResult.status === 'fulfilled' && hunterResult.value) {
     console.log(`   -> Hunter found: ${hunterResult.value.length} emails`);
