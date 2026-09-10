@@ -228,7 +228,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Determine the new status
       let newStatus = 'new';
       if (!aiResult.selected_email || aiResult.score < 60) {
-        newStatus = 'suppressed';
+        newStatus = 'rejected';
       }
 
       const { error: updateError } = await supabaseAdmin
@@ -275,11 +275,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             console.error(`[cron/process-leads] Failed to auto-queue lead ${lead.id}:`, qErr);
           }
         } else {
-          await supabaseAdmin.from('leads').update({ status: 'suppressed' }).eq('id', lead.id);
-          console.log(`[cron/process-leads] Auto-suppressed lead ${lead.id} because email is suppressed.`);
+          await supabaseAdmin.from('leads').update({ status: 'rejected' }).eq('id', lead.id);
+          console.log(`[cron/process-leads] Auto-rejected lead ${lead.id} because email is suppressed.`);
         }
-      } else if (newStatus === 'suppressed') {
-        console.log(`[cron/process-leads] Auto-suppressed lead ${lead.id} due to low score or missing email.`);
+      } else if (newStatus === 'rejected') {
+        console.log(`[cron/process-leads] Auto-rejected lead ${lead.id} due to low score or missing email.`);
       }
 
       console.log(`[cron/process-leads] Lead ${lead.id} scored: ${aiResult.score}/100`);
