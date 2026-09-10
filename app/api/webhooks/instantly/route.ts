@@ -7,6 +7,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramNotification } from '@/lib/telegram';
 
 export async function POST(request: NextRequest) {
+  const secret = process.env.INSTANTLY_WEBHOOK_SECRET;
+  const authHeader = request.headers.get('authorization');
+
+  if (!secret || authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const payload = await request.json();
 

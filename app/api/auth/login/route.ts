@@ -23,14 +23,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { isRateLimited, recordFailedAttempt, clearAttempts } from '@/lib/rate-limit';
+import { SignJWT } from 'jose';
+import crypto from 'crypto';
 
 // Session cookie name — used by middleware to gate /dashboard
 export const SESSION_COOKIE_NAME = 'lead_sys_session';
 
-// Session token — a simple shared secret stored in the cookie.
-// In a multi-user system you'd use signed JWTs; for a solo
-// internal tool this is sufficient.
-const SESSION_TOKEN_VALUE = 'authenticated';
+// Session token — now a JWT instead of a static string
+// The token is signed using SESSION_SECRET.
 
 // Cookie max-age: 8 hours (matches a typical work session)
 const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const clientIp = getClientIp(request);
 
   // ── 1. Pre-check rate limit before touching the password ──
-  const { limited, resetAt } = isRateLimited(clientIp);
+  const { limited, resetAt } = await isRateLimited(clientIp);
   if (limited) {
     const resetInSeconds = Math.ceil((resetAt - Date.now()) / 1000);
     console.warn(`[auth/login] IP ${clientIp} is rate-limited. Reset in ${resetInSeconds}s.`);
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!isCorrect) {
     // ── 4. Record failed attempt ─────────────────────────────
-    const { limited: nowLimited, remaining, resetAt: newResetAt } = recordFailedAttempt(clientIp);
+    const { limited: nowLimited, remaining, resetAt: newResetAt } = await recordFailedAttempt(clientIp);
 
     if (nowLimited) {
       const resetInSeconds = Math.ceil((newResetAt - Date.now()) / 1000);
@@ -118,11 +118,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── 5. Success — set session cookie and clear attempts ─────
-  clearAttempts(clientIp);
+  await clearAttempts(clientIp);
   console.log(`[auth/login] Successful login from IP ${clientIp}.`);
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, SESSION_TOKEN_VALUE, {
+  
+  const secret = new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret-for-dev-only');
+  const token = await new SignJWT({ authenticated: true })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
+    .sign(secret);
+
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,                               // XSS protection
     secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
     sameSite: 'strict',                           // CSRF protection
@@ -140,23 +148,16 @@ export async function DELETE(): Promise<NextResponse> {
   return NextResponse.json({ success: true });
 }
 
-// ── Timing-safe string comparison ─────────────────────────────
-// Prevents timing attacks where attackers measure response time
-// to guess characters of the password one-by-one.
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still compare all chars of `a` against `b` padded,
-    // so response time doesn't reveal length mismatch directly.
-    let result = 1; // Non-zero = not equal
-    for (let i = 0; i < a.length; i++) {
-      result |= a.charCodeAt(i) ^ (b.charCodeAt(i % b.length) ?? 0);
+  try {
+    const aBuf = Buffer.from(a);
+    const bBuf = Buffer.from(b);
+    if (aBuf.length !== bBuf.length) {
+      crypto.timingSafeEqual(aBuf, aBuf); // dummy call
+      return false;
     }
-    return result === 0 && a.length === b.length;
+    return crypto.timingSafeEqual(aBuf, bBuf);
+  } catch {
+    return false;
   }
-
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }

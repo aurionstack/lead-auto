@@ -16,19 +16,27 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
 
 const SESSION_COOKIE_NAME = 'lead_sys_session';
-const SESSION_TOKEN_VALUE = 'authenticated';
 
-export function proxy(request: NextRequest): NextResponse {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // Only gate /dashboard routes
   if (pathname.startsWith('/dashboard')) {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
+    let isAuthenticated = false;
 
-    const isAuthenticated =
-      sessionCookie?.value === SESSION_TOKEN_VALUE;
+    if (sessionCookie?.value) {
+      try {
+        const secret = new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret-for-dev-only');
+        await jwtVerify(sessionCookie.value, secret);
+        isAuthenticated = true;
+      } catch (err) {
+        console.error('[proxy] Invalid session JWT');
+      }
+    }
 
     if (!isAuthenticated) {
       // Redirect to login, preserving the originally requested URL

@@ -30,6 +30,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult } from '@/lib/types';
 import { findEmailWithHunter } from '@/lib/hunter';
 import { findEmailWithRegex } from '@/lib/email-parser';
+import { addToQueue } from '@/lib/email/queue';
+import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
+import { isSuppressed } from '@/lib/email/suppression';
 
 export const maxDuration = 60;
 const BATCH_SIZE = 2;
@@ -101,7 +104,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .select('*')
     .eq('status', 'new')
     .or('opportunity_score.is.null,opportunity_score.eq.0')
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(BATCH_SIZE);
 
   if (fetchError) {
@@ -222,6 +225,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
       }
 
+      // Determine the new status
+      let newStatus = 'new';
+      if (!aiResult.selected_email || aiResult.score < 60) {
+        newStatus = 'suppressed';
+      }
+
       const { error: updateError } = await supabaseAdmin
         .from('leads')
         .update({
@@ -231,6 +240,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           drafted_email_pitch: aiResult.pitch_email,
           email: aiResult.selected_email || null,
           alternative_emails: alternativeEmails.length > 0 ? alternativeEmails : null,
+          status: newStatus,
         })
         .eq('id', lead.id);
 
@@ -238,6 +248,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         console.error(`[cron/process-leads] Failed to update lead ${lead.id}:`, updateError);
         results.push({ id: lead.id, status: 'error' });
         continue; // Don't throw — process the next lead
+      }
+
+      if (newStatus === 'new' && aiResult.selected_email && aiResult.pitch_email) {
+        const targetEmail = aiResult.selected_email;
+        if (!(await isSuppressed(targetEmail))) {
+          const businessName = lead.business_name || 'Business Owner';
+          const draft = aiResult.pitch_email;
+          const unsubscribeLink = `https://${process.env.NEXT_PUBLIC_SITE_URL || 'localhost:3000'}/unsubscribe?lead=${lead.id}`;
+          
+          const html = buildOutreachHtml({ businessName, body: draft, unsubscribeLink });
+          const text = buildOutreachText({ businessName, body: draft, unsubscribeLink });
+          const subject = `Partnership Inquiry - ${businessName}`;
+          
+          try {
+            await addToQueue({
+              leadId: lead.id,
+              subject: subject,
+              bodyHtml: html,
+              bodyText: text,
+              targetEmail: targetEmail
+            });
+            await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
+            console.log(`[cron/process-leads] Auto-queued lead ${lead.id}`);
+          } catch (qErr) {
+            console.error(`[cron/process-leads] Failed to auto-queue lead ${lead.id}:`, qErr);
+          }
+        } else {
+          await supabaseAdmin.from('leads').update({ status: 'suppressed' }).eq('id', lead.id);
+          console.log(`[cron/process-leads] Auto-suppressed lead ${lead.id} because email is suppressed.`);
+        }
+      } else if (newStatus === 'suppressed') {
+        console.log(`[cron/process-leads] Auto-suppressed lead ${lead.id} due to low score or missing email.`);
       }
 
       console.log(`[cron/process-leads] Lead ${lead.id} scored: ${aiResult.score}/100`);

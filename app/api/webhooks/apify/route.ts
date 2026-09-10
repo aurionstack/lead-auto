@@ -62,6 +62,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { searchParams } = new URL(request.url);
   const jobId = searchParams.get('jobId');
+  const token = searchParams.get('token');
+
+  const expectedToken = process.env.APIFY_WEBHOOK_SECRET;
+  if (!expectedToken || token !== expectedToken) {
+    console.warn(`[webhook/apify] Unauthorized webhook attempt.`);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   console.log(`[webhook/apify] Received dataset ID: ${datasetId}, jobId: ${jobId}`);
 

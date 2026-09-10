@@ -18,8 +18,9 @@ const APIFY_BASE_URL = 'https://api.apify.com/v2';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const apifyToken = process.env.APIFY_TOKEN;
-  if (!apifyToken) {
-    return NextResponse.json({ error: 'APIFY_TOKEN not configured.' }, { status: 500 });
+  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET;
+  if (!apifyToken || !webhookSecret) {
+    return NextResponse.json({ error: 'APIFY_TOKEN or APIFY_WEBHOOK_SECRET not configured.' }, { status: 500 });
   }
 
   // Parse request body
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const jobId = jobData.id;
 
-  const webhookUrl = `${appUrl}/api/webhooks/apify?jobId=${jobId}`;
+  const webhookUrl = `${appUrl}/api/webhooks/apify?jobId=${jobId}&token=${webhookSecret}`;
 
   console.log(`[scrape] Triggering Apify for: "${searchQuery}", max: ${maxResults}, jobId: ${jobId}`);
 

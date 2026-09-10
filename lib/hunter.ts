@@ -4,8 +4,16 @@
 import { DiscoveredEmail } from './types';
 
 export async function findEmailWithHunter(domain: string): Promise<DiscoveredEmail[]> {
-  const apiKey = process.env.HUNTER_API_KEY;
-  if (!apiKey || apiKey === 'paste_your_hunter_api_key_here') return [];
+  // Collect all API keys from environment variables (e.g., HUNTER_API_KEY, HUNTER_API_KEY_1, HUNTER_API_KEY_2)
+  const apiKeys = Object.keys(process.env)
+    .filter(key => key.startsWith('HUNTER_API_KEY') && process.env[key] && process.env[key] !== 'paste_your_hunter_api_key_here')
+    .map(key => process.env[key] as string);
+
+  if (apiKeys.length === 0) return [];
+
+  // Randomly select one key from the pool to load balance usage
+  const apiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
+
 
   try {
     const response = await fetch(`https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${apiKey}`);
