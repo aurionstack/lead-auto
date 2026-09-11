@@ -95,17 +95,14 @@ export async function processQueue(batchSize = 10) {
   // 3. Process the successfully locked items
   for (const item of lockedItems) {
     try {
-      // Re-fetch email (we could also store it in the queue, but fetching ensures freshness)
-      const { data: enrichmentData } = await supabaseAdmin
-        .from('leads_enrichment')
-        .select('discovered_emails')
-        .eq('lead_id', item.lead_id)
+      // Re-fetch email from the leads table
+      const { data: leadData } = await supabaseAdmin
+        .from('leads')
+        .select('email')
+        .eq('id', item.lead_id)
         .single();
 
-      let targetEmail = null;
-      if (enrichmentData?.discovered_emails && Array.isArray(enrichmentData.discovered_emails)) {
-        targetEmail = enrichmentData.discovered_emails[0]?.email;
-      }
+      let targetEmail = leadData?.email || null;
 
       if (!targetEmail) {
         await markQueueFailed(item.id, item.lead_id, 'No email found for lead');
