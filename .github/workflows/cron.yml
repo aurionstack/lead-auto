@@ -16,6 +16,11 @@ jobs:
           curl -X GET "${{ secrets.APP_URL }}/api/cron/process-leads" \
           -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
+      - name: Ping process-outreach (Every 10 mins)
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/process-outreach" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
       - name: Ping auto-push (Every 10 mins)
         run: |
           curl -X GET "${{ secrets.APP_URL }}/api/cron/auto-push" \
