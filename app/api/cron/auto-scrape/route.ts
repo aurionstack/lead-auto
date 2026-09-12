@@ -26,6 +26,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
+  // 1.5. Safety Limit Check: Prevent scraping if system is backlogged
+  // Check pending emails
+  const { count: pendingEmails } = await supabaseAdmin
+    .from('outreach_queue')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['pending', 'locked']);
+
+  if (pendingEmails !== null && pendingEmails >= 20) {
+    console.log(`[cron/auto-scrape] Safety limit reached: ${pendingEmails} pending emails. Halting scrape.`);
+    return NextResponse.json({ message: 'Scraping paused due to outreach queue backlog.' });
+  }
+
+  // Check unscored leads
+  const { count: unscoredLeads } = await supabaseAdmin
+    .from('leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'new')
+    .or('opportunity_score.is.null,opportunity_score.eq.0');
+
+  if (unscoredLeads !== null && unscoredLeads >= 100) {
+    console.log(`[cron/auto-scrape] Safety limit reached: ${unscoredLeads} unscored leads. Halting scrape.`);
+    return NextResponse.json({ message: 'Scraping paused due to unscored leads backlog.' });
+  }
+
   // 2. Fetch the oldest untouched search configuration
   const { data: config, error: fetchError } = await supabaseAdmin
     .from('search_configs')

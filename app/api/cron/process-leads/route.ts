@@ -96,7 +96,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Gemini API key missing.' }, { status: 500 });
   }
 
-  // ── 3. Fetch unscored leads from Supabase ─────────────────
+  // ── 3. Check Outreach Queue Backlog ────────────────────────
+  // To prevent overwhelming the system, we pause scraping/scoring
+  // if there are too many pending emails waiting to be sent.
+  const { count: pendingCount, error: countError } = await supabaseAdmin
+    .from('outreach_queue')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['pending', 'locked']);
+
+  if (countError) {
+    console.error('[cron/process-leads] Error checking queue size:', countError);
+  } else if (pendingCount !== null && pendingCount >= 20) {
+    console.log(`[cron/process-leads] Queue is full (${pendingCount} pending emails). Pausing lead processing until emails are sent.`);
+    return NextResponse.json({ success: true, processed: 0, message: `Queue backlog is at ${pendingCount}. Paused to allow sending engine to catch up.` });
+  }
+
+  // ── 4. Fetch unscored leads from Supabase ─────────────────
   // Targets rows where opportunity_score is NULL or exactly 0
   // and status is 'new' (not yet touched by any action).
   const { data: leads, error: fetchError } = await supabaseAdmin
