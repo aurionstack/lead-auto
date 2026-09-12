@@ -79,46 +79,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col text-white">
-      {/* ── Top Navigation Bar ──────────────────────────────── */}
-      <header className="h-14 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30">
-            <LayoutDashboard className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div>
-            <span className="text-sm font-bold text-white">Scrape Campaigns</span>
-            <span className="text-slate-500 text-xs ml-2">· Lead Batches</span>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard/settings"
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-400 transition-colors"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            Settings
-          </Link>
-
-          <button
-            onClick={() => setShowScrapeModal(true)}
-            className="flex items-center gap-1.5 text-xs bg-emerald-900/40 hover:bg-emerald-800/60 text-emerald-300 border border-emerald-800/50 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <Search className="w-3.5 h-3.5" />
-            New Scrape
-          </button>
-
-          <div className="w-px h-4 bg-slate-800 hidden sm:block"></div>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
-          </button>
-        </div>
-      </header>
 
       {/* ── Feedback Toast ──────────────────────────────────── */}
       {actionFeedback && (
