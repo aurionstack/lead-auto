@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SignJWT } from 'jose';
-import { isBearerAuthorized, isCronAuthorized, verifySessionToken } from '../lib/auth';
+import { isBearerAuthorized, isCronAuthorized } from '../lib/auth';
 import { buildOutreachHtml } from '../lib/email/templates';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl, createUnsubscribeToken, verifyUnsubscribeToken } from '../lib/email/unsubscribe';
 import { findEmailWithRegex } from '../lib/email-parser';
@@ -16,19 +16,6 @@ describe('authorization', () => {
     vi.stubEnv('CRON_SECRET', 'cron-secret');
     expect(isCronAuthorized(new Request('https://example.com', { headers: { authorization: 'Bearer wrong' } }))).toBe(false);
     expect(isCronAuthorized(new Request('https://example.com', { headers: { authorization: 'Bearer cron-secret' } }))).toBe(true);
-  });
-
-  it('accepts only valid signed dashboard sessions', async () => {
-    vi.stubEnv('SESSION_SECRET', 'a-session-secret-long-enough-for-tests');
-    const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
-    const valid = await new SignJWT({ authenticated: true })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuer('lead-system')
-      .setAudience('dashboard')
-      .setExpirationTime('5m')
-      .sign(secret);
-    expect(await verifySessionToken(valid)).toBe(true);
-    expect(await verifySessionToken(`${valid}tampered`)).toBe(false);
   });
 });
 

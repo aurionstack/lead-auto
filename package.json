@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.10.0",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.109.0",
     "cheerio": "^1.2.0",
     "jose": "^6.2.10",

@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         bodyText: text,
         targetEmail: targetEmail,
         unsubscribeUrl: buildOneClickUnsubscribeUrl(leadId),
-      });
+      }, (lead as any).organization_id);
     } catch (queueError) {
       await supabaseAdmin.from('leads').update({ status: 'new' }).eq('id', leadId).eq('status', 'approved');
       throw queueError;

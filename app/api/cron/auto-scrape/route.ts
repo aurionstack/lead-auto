@@ -55,9 +55,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
   const claimedConfig = config as SearchConfig;
 
-  const apifyToken = process.env.APIFY_TOKEN;
+  const { data: orgSettings } = await supabaseAdmin
+    .from('organization_settings')
+    .select('apify_api_token')
+    .eq('organization_id', (claimedConfig as any).organization_id)
+    .single();
+
+  const apifyToken = orgSettings?.apify_api_token || process.env.APIFY_TOKEN;
   if (!apifyToken) {
-    return NextResponse.json({ error: 'APIFY_TOKEN not configured.' }, { status: 500 });
+    console.error(`[cron/auto-scrape] Apify token missing for org ${(claimedConfig as any).organization_id}`);
+    return NextResponse.json({ error: 'Apify token missing.' }, { status: 500 });
   }
   const webhookSecret = process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET;
   if (!webhookSecret) {
@@ -72,7 +79,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // 3. Create a new scrape job in the database
   const { data: jobData, error: jobError } = await supabaseAdmin
     .from('scrape_jobs')
-    .insert([{ location: claimedConfig.location, category: claimedConfig.search_query, channel: claimedConfig.channel, status: 'scraping' }])
+    .insert([{ 
+      location: claimedConfig.location, 
+      category: claimedConfig.search_query, 
+      channel: claimedConfig.channel, 
+      status: 'scraping',
+      organization_id: (claimedConfig as any).organization_id 
+    }])
     .select('id')
     .single();
 

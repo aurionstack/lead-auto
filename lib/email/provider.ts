@@ -3,25 +3,15 @@
 // ============================================================
 import nodemailer from 'nodemailer';
 
-// Configuration from environment variables
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.zoho.com';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-
-const EMAIL_FROM = process.env.EMAIL_FROM || 'hello@aurionstack.dev';
-const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || 'sameer@aurionstack.dev';
-
-// Configure the nodemailer transporter
-export const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: SMTP_PORT === 465, // true for 465, false for other ports
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-});
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  fromEmail: string;
+  fromName?: string;
+  replyTo?: string;
+}
 
 export interface SendEmailParams {
   to: string;
@@ -33,26 +23,37 @@ export interface SendEmailParams {
 }
 
 /**
- * Sends an email using the configured SMTP provider.
- * Automatically sets the Reply-To header to the business mailbox.
+ * Sends an email using the configured SMTP provider dynamically per tenant.
  */
-export async function sendOutreachEmail({ to, subject, html, text, messageId, unsubscribeUrl }: SendEmailParams) {
-  if (!SMTP_USER || !SMTP_PASS) {
+export async function sendOutreachEmail(params: SendEmailParams, config: SmtpConfig) {
+  if (!config.user || !config.pass) {
     console.warn('SMTP credentials are not configured. Email will not be sent.');
-    return { success: false, error: 'SMTP credentials missing' };
+    return { success: false, error: 'SMTP credentials missing for organization' };
   }
 
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.port === 465, // true for 465, false for other ports
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+
   try {
+    const fromStr = config.fromName ? `"${config.fromName}" <${config.fromEmail}>` : config.fromEmail;
+
     const info = await transporter.sendMail({
-      from: EMAIL_FROM,
-      to,
-      replyTo: EMAIL_REPLY_TO,
-      subject,
-      text,
-      html,
-      messageId, // Useful for tracking replies/bounces
-      headers: unsubscribeUrl ? {
-        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+      from: fromStr,
+      to: params.to,
+      replyTo: config.replyTo || config.fromEmail,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+      messageId: params.messageId, // Useful for tracking replies/bounces
+      headers: params.unsubscribeUrl ? {
+        'List-Unsubscribe': `<${params.unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       } : undefined,
     });

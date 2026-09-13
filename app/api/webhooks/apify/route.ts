@@ -33,15 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // ── 1. Validate Apify Token is configured ──────────────────
-  const apifyToken = process.env.APIFY_TOKEN;
-  if (!apifyToken) {
-    console.error('[webhook/apify] APIFY_TOKEN is not configured.');
-    return NextResponse.json(
-      { success: false, error: 'Server misconfiguration.' },
-      { status: 500 }
-    );
-  }
+  // Token validation moved to after jobId extraction
 
   // ── 2. Parse the Apify webhook payload ─────────────────────
   // Apify sends: { "resource": { "defaultDatasetId": "abc123" }, ... }
@@ -71,15 +63,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   console.log(`[webhook/apify] Received dataset ID: ${datasetId}, jobId: ${jobId}`);
 
   let channel: 'email' | 'whatsapp' | 'instantly' = 'email';
+  let organizationId: string | null = null;
+  let apifyToken: string | null = null;
+
   if (jobId) {
     const { data: job } = await supabaseAdmin
       .from('scrape_jobs')
-      .select('channel')
+      .select('channel, organization_id')
       .eq('id', jobId)
       .maybeSingle();
-    if (job?.channel && ['email', 'whatsapp', 'instantly'].includes(job.channel)) {
-      channel = job.channel;
+      
+    if (job) {
+      organizationId = job.organization_id;
+      if (job.channel && ['email', 'whatsapp', 'instantly'].includes(job.channel)) {
+        channel = job.channel;
+      }
     }
+  }
+
+  if (organizationId) {
+    const { data: orgSettings } = await supabaseAdmin
+      .from('organization_settings')
+      .select('apify_api_token')
+      .eq('organization_id', organizationId)
+      .single();
+    apifyToken = orgSettings?.apify_api_token || process.env.APIFY_TOKEN || null;
+  }
+
+  if (!apifyToken) {
+    console.error(`[webhook/apify] APIFY_TOKEN is not configured for org ${organizationId}.`);
+    return NextResponse.json(
+      { success: false, error: 'Apify token missing for organization.' },
+      { status: 500 }
+    );
   }
 
   // ── 3. Fetch items from Apify Dataset API ──────────────────
@@ -146,6 +162,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     website: item.website ?? null,
     channel,
     scrape_job_id: jobId || null,
+    organization_id: organizationId,
     // opportunity_score defaults to 0 (unscored)
     // status defaults to 'new'
     // ai_reasoning, drafted_pitch are set by the cron worker

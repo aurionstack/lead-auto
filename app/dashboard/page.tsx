@@ -2,21 +2,23 @@
 // app/dashboard/page.tsx — Dashboard Server Component
 // ============================================================
 import { Suspense } from 'react';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase-server';
 import DashboardTabs from '@/components/dashboard/DashboardTabs';
 import { Loader2 } from 'lucide-react';
 import { hasDashboardSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
 async function fetchDashboardData() {
+  const supabase = await createClient();
+
   // 1. Fetch Cron Jobs (Scrape Jobs)
-  const { data: jobs } = await supabaseAdmin
+  const { data: jobs } = await supabase
     .from('scrape_jobs')
     .select('*')
     .order('created_at', { ascending: false });
 
   // 2. Fetch Sent Emails (Outreach History)
-  const { data: outreach } = await supabaseAdmin
+  const { data: outreach } = await supabase
     .from('outreach_queue')
     .select(`
       *,
@@ -29,7 +31,7 @@ async function fetchDashboardData() {
     .order('sent_at', { ascending: false });
 
   // 3. Fetch Leads Stats
-  const { data: leads } = await supabaseAdmin
+  const { data: leads } = await supabase
     .from('leads')
     .select('status, created_at');
 

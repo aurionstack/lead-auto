@@ -18,7 +18,7 @@ export interface QueueItem {
 /**
  * Adds an approved lead's email snapshot to the queue.
  */
-export async function addToQueue(item: QueueItem) {
+export async function addToQueue(item: QueueItem, organizationId: string) {
   // Final suppression check before queuing
   if (await isSuppressed(item.targetEmail)) {
     console.warn(`Attempted to queue suppressed email: ${item.targetEmail}`);
@@ -37,6 +37,7 @@ export async function addToQueue(item: QueueItem) {
         unsubscribe_url: item.unsubscribeUrl,
         status: 'pending',
         scheduled_for: item.scheduledFor ? item.scheduledFor.toISOString() : new Date().toISOString(),
+        organization_id: organizationId,
       },
     ])
     .select()
@@ -96,7 +97,7 @@ export async function processQueue(batchSize = 10) {
       
       await logEvent(item.lead_id, item.id, 'sending');
 
-      const outboundMessageId = `<outreach-${item.id}@${(process.env.EMAIL_FROM || 'localhost').split('@').pop()}>`;
+      const outboundMessageId = `<outreach-${item.id}@aurionstack.dev>`;
       const { error: reservationError } = await supabaseAdmin
         .from('outreach_queue')
         .update({ provider_message_id: outboundMessageId, provider: 'smtp', updated_at: new Date().toISOString() })
@@ -107,6 +108,27 @@ export async function processQueue(batchSize = 10) {
         continue;
       }
 
+      // Fetch tenant SMTP config
+      const { data: orgSettings } = await supabaseAdmin
+        .from('organization_settings')
+        .select('smtp_host, smtp_port, smtp_user, smtp_password, from_email, from_name')
+        .eq('organization_id', item.organization_id)
+        .single();
+
+      if (!orgSettings || !orgSettings.smtp_host || !orgSettings.smtp_user) {
+        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Organization SMTP credentials not configured', false);
+        continue;
+      }
+
+      const smtpConfig = {
+        host: orgSettings.smtp_host,
+        port: orgSettings.smtp_port || 465,
+        user: orgSettings.smtp_user,
+        pass: orgSettings.smtp_password,
+        fromEmail: orgSettings.from_email || orgSettings.smtp_user,
+        fromName: orgSettings.from_name,
+      };
+
       // Send Email using the snapshot!
       const result = await sendOutreachEmail({
         to: targetEmail,
@@ -115,7 +137,7 @@ export async function processQueue(batchSize = 10) {
         text: item.body_text,
         messageId: outboundMessageId,
         unsubscribeUrl: item.unsubscribe_url || undefined,
-      });
+      }, smtpConfig);
 
       if (result.success) {
         // Mark as sent

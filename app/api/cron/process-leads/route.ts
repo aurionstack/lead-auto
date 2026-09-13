@@ -28,7 +28,7 @@ import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult, DiscoveredEmail } from '@/lib/types';
-import { findEmailWithHunter } from '@/lib/hunter';
+import { findEmailWithHunter, getHunterApiKey } from '@/lib/hunter';
 import { findEmailWithRegex } from '@/lib/email-parser';
 import { addToQueue } from '@/lib/email/queue';
 import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
@@ -84,12 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
-  // ── 2. Validate Gemini API Key ─────────────────────────────
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
-    console.error('[cron/process-leads] GEMINI_API_KEY is not configured.');
-    return NextResponse.json({ error: 'Gemini API key missing.' }, { status: 500 });
-  }
+  // (Removed global Gemini API key validation to support multi-tenant BYOK)
 
   // ── 3. Check Outreach Queue Backlog ────────────────────────
   // To prevent overwhelming the system, we pause scraping/scoring
@@ -124,16 +119,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   console.log(`[cron/process-leads] Processing batch of ${leads.length} leads.`);
 
-  // ── 4. Initialize Google Gemini AI client ─────────────────
-  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-  // ── 5. Process each lead sequentially ─────────────────────
-  // Sequential (not Promise.all) to avoid Gemini rate limits.
+  // ── 4 & 5. Process each lead sequentially ─────────────────────
   const results: { id: string; status: 'success' | 'error'; score?: number }[] = [];
 
   for (const lead of leads as Lead[]) {
     try {
       console.log(`[cron/process-leads] Scoring lead: ${lead.id} (${lead.business_name})`);
+
+      // Fetch tenant API keys
+      const { data: orgSettings } = await supabaseAdmin
+        .from('organization_settings')
+        .select('gemini_api_key, hunter_api_key')
+        .eq('organization_id', (lead as any).organization_id)
+        .single();
+
+      const geminiApiKey = orgSettings?.gemini_api_key || process.env.GEMINI_API_KEY;
+      const hunterApiKey = getHunterApiKey(orgSettings?.hunter_api_key);
+
+      if (!geminiApiKey) {
+        console.error(`[cron/process-leads] Gemini API key missing for org ${(lead as any).organization_id}`);
+        await supabaseAdmin.from('leads').update({ status: 'new', processing_started_at: null }).eq('id', lead.id);
+        results.push({ id: lead.id, status: 'error' });
+        continue;
+      }
+
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
       let enrichedData = '';
       let finalWebsite = normalizeWebsiteUrl(lead.website);
@@ -166,7 +176,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         console.log(`[cron/process-leads] Running concurrent email discovery for ${domain}...`);
         
         const [hunterResult] = await Promise.allSettled([
-          findEmailWithHunter(domain)
+          findEmailWithHunter(domain, hunterApiKey)
         ]);
         
         const regexResult = findEmailWithRegex(websiteText);
@@ -237,7 +247,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       // Determine the new status
       let newStatus = 'new';
-      if (aiResult.score < 60 || (lead.channel !== 'whatsapp' && !aiResult.selected_email)) {
+      const hasEmail = !!aiResult.selected_email;
+      const hasPhone = !!lead.phone;
+
+      if (aiResult.score < 60 || (!hasEmail && !hasPhone)) {
         newStatus = 'rejected';
       }
 
@@ -263,38 +276,52 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         continue; // Don't throw — process the next lead
       }
 
-      if (newStatus === 'new' && lead.channel === 'email' && aiResult.selected_email && aiResult.pitch_email) {
+      if (newStatus === 'new') {
         const targetEmail = aiResult.selected_email;
-        if (!(await isSuppressed(targetEmail))) {
-          const businessName = lead.business_name || 'Business Owner';
-          const draft = aiResult.pitch_email;
-          const unsubscribeLink = buildUnsubscribeUrl(lead.id);
-          
-          const html = buildOutreachHtml({ businessName, body: draft, unsubscribeLink });
-          const text = buildOutreachText({ businessName, body: draft, unsubscribeLink });
-          const subject = `Partnership Inquiry - ${businessName}`;
-          
-          try {
-            await addToQueue({
-              leadId: lead.id,
-              subject: subject,
-              bodyHtml: html,
-              bodyText: text,
-              targetEmail: targetEmail,
-              unsubscribeUrl: buildOneClickUnsubscribeUrl(lead.id),
-            });
-            await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
-            console.log(`[cron/process-leads] Auto-queued lead ${lead.id}`);
-          } catch (qErr) {
-            console.error(`[cron/process-leads] Failed to auto-queue lead ${lead.id}:`, qErr);
-            await supabaseAdmin.from('leads').update({ status: 'new', opportunity_score: 0 }).eq('id', lead.id);
+        
+        if (targetEmail && aiResult.pitch_email) {
+          // 1. We have an email — try to queue for outreach
+          if (!(await isSuppressed(targetEmail))) {
+            const businessName = lead.business_name || 'Business Owner';
+            const draft = aiResult.pitch_email;
+            const unsubscribeLink = buildUnsubscribeUrl(lead.id);
+            
+            const html = buildOutreachHtml({ businessName, body: draft, unsubscribeLink });
+            const text = buildOutreachText({ businessName, body: draft, unsubscribeLink });
+            const subject = `Partnership Inquiry - ${businessName}`;
+            
+            try {
+              await addToQueue({
+                leadId: lead.id,
+                subject: subject,
+                bodyHtml: html,
+                bodyText: text,
+                targetEmail: targetEmail,
+                unsubscribeUrl: buildOneClickUnsubscribeUrl(lead.id),
+              }, (lead as any).organization_id);
+              await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
+              console.log(`[cron/process-leads] Auto-queued lead ${lead.id} for email outreach`);
+            } catch (qErr) {
+              console.error(`[cron/process-leads] Failed to auto-queue lead ${lead.id}:`, qErr);
+              await supabaseAdmin.from('leads').update({ status: 'new', opportunity_score: 0 }).eq('id', lead.id);
+            }
+          } else {
+            // Email is suppressed. If they have a phone, approve for WhatsApp. Otherwise reject.
+            if (hasPhone) {
+              await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
+              console.log(`[cron/process-leads] Email suppressed, but approved lead ${lead.id} for WhatsApp.`);
+            } else {
+              await supabaseAdmin.from('leads').update({ status: 'rejected' }).eq('id', lead.id);
+              console.log(`[cron/process-leads] Auto-rejected lead ${lead.id} because email is suppressed and no phone available.`);
+            }
           }
-        } else {
-          await supabaseAdmin.from('leads').update({ status: 'rejected' }).eq('id', lead.id);
-          console.log(`[cron/process-leads] Auto-rejected lead ${lead.id} because email is suppressed.`);
+        } else if (hasPhone) {
+          // 2. We don't have an email (or pitch), but we DO have a phone
+          await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
+          console.log(`[cron/process-leads] Approved lead ${lead.id} for WhatsApp (no email found).`);
         }
       } else if (newStatus === 'rejected') {
-        console.log(`[cron/process-leads] Auto-rejected lead ${lead.id} due to low score or missing email.`);
+        console.log(`[cron/process-leads] Auto-rejected lead ${lead.id} due to low score or missing contact info.`);
       }
 
       console.log(`[cron/process-leads] Lead ${lead.id} scored: ${aiResult.score}/100`);

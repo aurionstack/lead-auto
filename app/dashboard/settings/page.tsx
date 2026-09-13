@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Suspense } from 'react';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase-server';
 import { hasDashboardSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import type { SearchConfig } from '@/lib/types';
@@ -11,7 +11,8 @@ import SearchConfigsClient from '@/components/dashboard/SearchConfigsClient';
 import { Loader2 } from 'lucide-react';
 
 async function fetchConfigs(): Promise<SearchConfig[]> {
-  const { data, error } = await supabaseAdmin
+  const supabase = await createClient();
+  const { data, error } = await supabase
     .from('search_configs')
     .select('*')
     .order('created_at', { ascending: false });

@@ -5,7 +5,7 @@
 // ============================================================
 
 import { Suspense } from 'react';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase-server';
 import type { Lead } from '@/lib/types';
 import DashboardClient from '@/components/dashboard/DashboardClient';
 import { Loader2 } from 'lucide-react';
@@ -14,7 +14,8 @@ import { redirect } from 'next/navigation';
 import { hasDashboardSession } from '@/lib/auth';
 
 async function fetchLeadsForJob(jobId: string): Promise<Lead[]> {
-  const { data, error } = await supabaseAdmin
+  const supabase = await createClient();
+  const { data, error } = await supabase
     .from('leads')
     .select('*')
     .eq('scrape_job_id', jobId)

@@ -5,6 +5,7 @@ import { LayoutDashboard, Mail, Activity, Settings, LogOut } from 'lucide-react'
 import type { DashboardData } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase-client';
 import AnalyticsChart from './AnalyticsChart';
 import SentInbox from './SentInbox';
 import BatchListClient from './BatchListClient';
@@ -14,7 +15,8 @@ export default function DashboardTabs({ data }: { data: DashboardData }) {
   const [activeTab, setActiveTab] = useState('analytics');
 
   const handleLogout = async () => {
-    await fetch('/api/auth/login', { method: 'DELETE' });
+    const supabase = createClient();
+    await supabase.auth.signOut();
     router.replace('/login');
     router.refresh();
   };
@@ -58,11 +60,18 @@ export default function DashboardTabs({ data }: { data: DashboardData }) {
 
         <div className="flex items-center gap-4">
           <Link
+            href="/dashboard/api-keys"
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-400 transition-colors"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            API Keys
+          </Link>
+          <Link
             href="/dashboard/settings"
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-400 transition-colors"
           >
             <Settings className="w-3.5 h-3.5" />
-            Settings
+            Scrape Configs
           </Link>
 
           <div className="w-px h-4 bg-slate-800 hidden sm:block"></div>
