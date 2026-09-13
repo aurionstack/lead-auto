@@ -20,56 +20,20 @@ export async function recordFailedAttempt(ip: string): Promise<{
   remaining: number;
   resetAt: number;
 }> {
-  const now = Date.now();
-  
-  // Try to fetch existing record
-  const { data: entry } = await supabaseAdmin
-    .from('rate_limits')
-    .select('*')
-    .eq('ip', ip)
-    .single();
+  const { data, error } = await supabaseAdmin.rpc('record_login_failure', {
+    client_ip: ip,
+    max_attempts: MAX_ATTEMPTS,
+    window_seconds: WINDOW_MS / 1000,
+  });
+  if (error || !data?.[0]) throw error || new Error('Rate limiter returned no result');
 
-  if (!entry) {
-    // First failed attempt
-    await supabaseAdmin
-      .from('rate_limits')
-      .insert({ ip, attempts: 1, first_attempt_at: new Date(now).toISOString() });
-
-    return {
-      limited: false,
-      remaining: MAX_ATTEMPTS - 1,
-      resetAt: now + WINDOW_MS,
-    };
-  }
-
-  const firstAttemptAt = new Date(entry.first_attempt_at).getTime();
-
-  // Check if window has expired
-  if (now - firstAttemptAt > WINDOW_MS) {
-    await supabaseAdmin
-      .from('rate_limits')
-      .update({ attempts: 1, first_attempt_at: new Date(now).toISOString() })
-      .eq('ip', ip);
-
-    return {
-      limited: false,
-      remaining: MAX_ATTEMPTS - 1,
-      resetAt: now + WINDOW_MS,
-    };
-  }
-
-  // Increment attempts
-  const newAttempts = entry.attempts + 1;
-  await supabaseAdmin
-    .from('rate_limits')
-    .update({ attempts: newAttempts })
-    .eq('ip', ip);
-
-  const limited = newAttempts >= MAX_ATTEMPTS;
-  const remaining = Math.max(0, MAX_ATTEMPTS - newAttempts);
-  const resetAt = firstAttemptAt + WINDOW_MS;
-
-  return { limited, remaining, resetAt };
+  const attempts = data[0].current_attempts as number;
+  const windowStartedAt = new Date(data[0].window_started_at).getTime();
+  return {
+    limited: attempts >= MAX_ATTEMPTS,
+    remaining: Math.max(0, MAX_ATTEMPTS - attempts),
+    resetAt: windowStartedAt + WINDOW_MS,
+  };
 }
 
 /**
@@ -81,11 +45,13 @@ export async function isRateLimited(ip: string): Promise<{
 }> {
   const now = Date.now();
   
-  const { data: entry } = await supabaseAdmin
+  const { data: entry, error } = await supabaseAdmin
     .from('rate_limits')
     .select('*')
     .eq('ip', ip)
     .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
 
   if (!entry) {
     return { limited: false, resetAt: 0 };

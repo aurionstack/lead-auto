@@ -8,10 +8,19 @@ export interface EmailTemplateData {
   unsubscribeLink: string;
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+  })[character] as string);
+}
+
 /**
  * Wraps the AI drafted pitch into a proper HTML email layout.
  */
 export function buildOutreachHtml(data: EmailTemplateData): string {
+  const safeBody = escapeHtml(data.body).replace(/\r?\n/g, '<br/>');
+  const safeBusinessName = escapeHtml(data.businessName);
+  const safeUnsubscribeLink = escapeHtml(data.unsubscribeLink);
   return `
 <!DOCTYPE html>
 <html>
@@ -26,10 +35,10 @@ export function buildOutreachHtml(data: EmailTemplateData): string {
 </head>
 <body>
   <div class="container">
-    ${data.body.replace(/\n/g, '<br/>')}
+    ${safeBody}
     
     <div class="footer">
-      <p>This email was sent to ${data.businessName}. If you'd prefer not to receive these emails, you can <a href="${data.unsubscribeLink}">unsubscribe here</a>.</p>
+      <p>This email was sent to ${safeBusinessName}. If you'd prefer not to receive these emails, you can <a href="${safeUnsubscribeLink}">unsubscribe here</a>.</p>
     </div>
   </div>
 </body>

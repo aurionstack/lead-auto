@@ -6,7 +6,7 @@
 // no Supabase client instances, no server-only imports.
 // ============================================================
 
-export type LeadStatus = 'new' | 'approved' | 'contacted' | 'rejected';
+export type LeadStatus = 'new' | 'processing' | 'approved' | 'contacted' | 'rejected' | 'suppressed' | 'bounced' | 'unsubscribed' | 'replied';
 export type ScrapeStatus = 'scraping' | 'completed' | 'failed';
 
 export interface DiscoveredEmail {
@@ -21,6 +21,7 @@ export interface ScrapeJob {
   id: string;
   location: string;
   category: string;
+  channel?: 'email' | 'whatsapp' | 'instantly';
   status: ScrapeStatus;
   results_count: number;
   created_at: string;
@@ -41,7 +42,8 @@ export interface Lead {
   drafted_email_pitch: string | null;
   website: string | null;
   email: string | null;
-  alternative_emails: any[] | null;
+  alternative_emails: DiscoveredEmail[] | null;
+  channel: 'email' | 'whatsapp' | 'instantly';
   status: LeadStatus;
   scrape_job_id: string | null;
   created_at: string;
@@ -82,4 +84,20 @@ export interface SearchConfig {
   is_active: boolean;
   last_scraped_at: string;
   created_at: string;
+}
+
+export interface OutreachRecord {
+  id: string;
+  subject: string;
+  body_text: string;
+  body_html: string;
+  sent_at: string | null;
+  leads: { business_name: string | null; email: string | null } | null;
+}
+
+export interface DashboardData {
+  jobs: ScrapeJob[];
+  outreach: OutreachRecord[];
+  leadStats: { total: number; contacted: number; rejected: number; new: number };
+  chartData: { date: string; sent: number }[];
 }

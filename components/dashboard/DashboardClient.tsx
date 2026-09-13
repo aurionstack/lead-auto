@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { Lead, LeadStatus } from '@/lib/types';
 import {
   LayoutDashboard, Users, TrendingUp, MessageSquare,
   Star, MapPin, Phone, ExternalLink, X, RefreshCw,
   CheckCircle2, XCircle, Zap, LogOut, ChevronRight,
-  Building2, Hash, Brain, Mail, Send, Loader2, ArrowLeft
+  Building2, Hash, Brain, Mail, Send, ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
 import LeadCard from './LeadCard';
 import MetricCard from './MetricCard';
+import { useRouter } from 'next/navigation';
 
 interface DashboardClientProps {
   // SECURITY: Only plain serializable Lead[] data received here.
@@ -20,29 +21,22 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ initialLeads, isMockData = false }: DashboardClientProps) {
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(
     initialLeads[0]?.id ?? null
   );
   const [isUpdating, setIsUpdating] = useState(false);
   const [isTriggeringAI, setIsTriggeringAI] = useState(false);
-  const [editedPitch, setEditedPitch] = useState<string>('');
-  const [editedEmailPitch, setEditedEmailPitch] = useState<string>('');
+  const [editedPitch, setEditedPitch] = useState<string>(initialLeads[0]?.drafted_pitch ?? '');
+  const [editedEmailPitch, setEditedEmailPitch] = useState<string>(initialLeads[0]?.drafted_email_pitch ?? '');
   const [pitchModified, setPitchModified] = useState(false);
   const [emailPitchModified, setEmailPitchModified] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [mockBannerDismissed, setMockBannerDismissed] = useState(false);
 
-  // Set initial pitch when component mounts with a selected lead
-  useEffect(() => {
-    const first = initialLeads[0];
-    if (first) {
-      setEditedPitch(first.drafted_pitch ?? '');
-      setEditedEmailPitch(first.drafted_email_pitch ?? '');
-    }
-  }, [initialLeads]);
-
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? null;
+  const selectedLeadIsActionable = Boolean(selectedLead && ['new', 'approved'].includes(selectedLead.status));
 
   // When a lead is selected, reset the editable pitch to its current value
   const handleSelectLead = (lead: Lead) => {
@@ -116,7 +110,11 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
     window.open(waUrl, '_blank', 'noopener,noreferrer');
 
     try {
-      await updateLead(selectedLead.id, { status: 'contacted' });
+      await updateLead(selectedLead.id, {
+        status: 'contacted',
+        drafted_pitch: editedPitch,
+        drafted_email_pitch: editedEmailPitch,
+      });
       setLeads((prev) =>
         prev.map((l) =>
           l.id === selectedLead.id ? { ...l, status: 'contacted' } : l
@@ -136,6 +134,12 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
     setIsUpdating(true);
 
     try {
+      if (pitchModified || emailPitchModified) {
+        await updateLead(selectedLead.id, {
+          drafted_pitch: editedPitch,
+          drafted_email_pitch: editedEmailPitch,
+        });
+      }
       const response = await fetch('/api/leads/push-to-instantly', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +187,8 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
   // ── Logout ────────────────────────────────────────────────────
   const handleLogout = async () => {
     await fetch('/api/auth/login', { method: 'DELETE' });
-    window.location.href = '/login';
+    router.replace('/login');
+    router.refresh();
   };
 
   // ── Trigger AI Processing ─────────────────────────────────────
@@ -226,9 +231,14 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
   const getStatusBadge = (status: LeadStatus) => {
     const map: Record<LeadStatus, { label: string; class: string }> = {
       new: { label: 'New', class: 'bg-blue-900/40 text-blue-300 border-blue-800/50' },
+      processing: { label: 'Processing', class: 'bg-amber-900/40 text-amber-300 border-amber-800/50' },
       approved: { label: 'Approved', class: 'bg-violet-900/40 text-violet-300 border-violet-800/50' },
       contacted: { label: 'Contacted', class: 'bg-emerald-900/40 text-emerald-300 border-emerald-800/50' },
       rejected: { label: 'Rejected', class: 'bg-red-900/40 text-red-300 border-red-800/50' },
+      suppressed: { label: 'Suppressed', class: 'bg-red-900/40 text-red-300 border-red-800/50' },
+      bounced: { label: 'Bounced', class: 'bg-red-900/40 text-red-300 border-red-800/50' },
+      unsubscribed: { label: 'Unsubscribed', class: 'bg-slate-800 text-slate-300 border-slate-700' },
+      replied: { label: 'Replied', class: 'bg-emerald-900/40 text-emerald-300 border-emerald-800/50' },
     };
     const config = map[status] ?? map.new;
     return (
@@ -510,7 +520,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                           Fallback Emails Banked ({selectedLead.alternative_emails.length})
                         </p>
                         <div className="grid gap-2">
-                          {selectedLead.alternative_emails.map((alt: any, idx: number) => (
+                          {selectedLead.alternative_emails.map((alt, idx) => (
                             <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/60 transition-colors">
                               <span className="text-sm text-slate-300 truncate font-medium">{alt.email}</span>
                               <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -628,7 +638,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                 <button
                   id={`whatsapp-btn-${selectedLead.id}`}
                   onClick={handleOpenWhatsApp}
-                  disabled={isUpdating || !selectedLead.phone || selectedLead.status === 'contacted'}
+                  disabled={isUpdating || !selectedLead.phone || !selectedLeadIsActionable}
                   className="flex-1 flex items-center justify-center gap-2 py-3 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-900/30"
                 >
                   {isUpdating ? (
@@ -643,7 +653,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                 <button
                   id={`instantly-btn-${selectedLead.id}`}
                   onClick={handlePushToInstantly}
-                  disabled={isUpdating || !selectedLead.email || selectedLead.status === 'contacted'}
+                  disabled={isUpdating || !selectedLead.email || !selectedLeadIsActionable}
                   className="flex-1 flex items-center justify-center gap-2 py-3 px-3 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-sky-900/30"
                 >
                   {isUpdating ? (
@@ -658,7 +668,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
                 <button
                   id={`reject-btn-${selectedLead.id}`}
                   onClick={handleRejectLead}
-                  disabled={isUpdating}
+                  disabled={isUpdating || !selectedLeadIsActionable}
                   className="flex items-center justify-center gap-2 py-3 px-4 bg-slate-800 hover:bg-red-950/60 hover:border-red-900/60 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-400 hover:text-red-400 text-sm font-semibold rounded-xl transition-all duration-200"
                 >
                   <X className="w-4 h-4" />

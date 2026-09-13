@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logEmailEvent, WebhookEvent } from '@/lib/email/tracking';
+import { isBearerAuthorized } from '@/lib/auth';
 
 /**
  * Generic webhook receiver for email events.
@@ -8,8 +9,9 @@ import { logEmailEvent, WebhookEvent } from '@/lib/email/tracking';
  */
 export async function POST(request: Request) {
   try {
-    // 1. Verify webhook signature here based on your provider
-    // const signature = request.headers.get('x-provider-signature');
+    if (!isBearerAuthorized(request, process.env.EMAIL_WEBHOOK_SECRET)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     const body = await request.json();
     
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, processed: eventsToProcess.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error processing email webhook:', error);
     return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 });
   }

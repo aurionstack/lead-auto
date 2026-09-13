@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { Eye, Clock, User, X } from 'lucide-react';
+import type { OutreachRecord } from '@/lib/types';
 
-export default function SentInbox({ outreach }: { outreach: any[] }) {
-  const [selectedEmail, setSelectedEmail] = useState<any>(null);
+export default function SentInbox({ outreach }: { outreach: OutreachRecord[] }) {
+  const [selectedEmail, setSelectedEmail] = useState<OutreachRecord | null>(null);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -46,9 +47,9 @@ export default function SentInbox({ outreach }: { outreach: any[] }) {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-slate-400">
                       <Clock className="w-4 h-4 mr-2 text-indigo-400" />
-                      {new Date(item.sent_at).toLocaleString('en-US', { 
+                      {item.sent_at ? new Date(item.sent_at).toLocaleString('en-US', {
                         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-                      })}
+                      }) : 'Pending'}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">

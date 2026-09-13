@@ -16,7 +16,6 @@ export async function sendTelegramNotification(message: string): Promise<boolean
   const payload = {
     chat_id: chatId,
     text: message,
-    parse_mode: 'Markdown',
   };
 
   try {

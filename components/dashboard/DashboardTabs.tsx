@@ -1,18 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { LayoutDashboard, Mail, Activity, Search, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Mail, Activity, Settings, LogOut } from 'lucide-react';
+import type { DashboardData } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AnalyticsChart from './AnalyticsChart';
 import SentInbox from './SentInbox';
 import BatchListClient from './BatchListClient';
 
-export default function DashboardTabs({ data }: { data: any }) {
+export default function DashboardTabs({ data }: { data: DashboardData }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('analytics');
 
   const handleLogout = async () => {
     await fetch('/api/auth/login', { method: 'DELETE' });
-    window.location.href = '/login';
+    router.replace('/login');
+    router.refresh();
   };
 
   return (

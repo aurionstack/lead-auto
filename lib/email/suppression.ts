@@ -20,9 +20,8 @@ export async function isSuppressed(email: string): Promise<boolean> {
 
   if (error) {
     console.error('Error checking suppression list:', error);
-    // If it fails, we might want to default to true (suppressed) to be safe,
-    // but in V1 we'll just log the error and allow it.
-    return false;
+    // Fail closed: a suppression-system outage must never cause an email send.
+    return true;
   }
 
   return !!data;
@@ -43,5 +42,6 @@ export async function addSuppression(email: string, reason: string): Promise<voi
 
   if (error) {
     console.error('Error adding to suppression list:', error);
+    throw error;
   }
 }

@@ -11,6 +11,7 @@ export interface QueueItem {
   bodyText: string;
   bodyHtml: string;
   targetEmail: string; // The email we resolved
+  unsubscribeUrl: string;
   scheduledFor?: Date;
 }
 
@@ -32,6 +33,8 @@ export async function addToQueue(item: QueueItem) {
         subject: item.subject,
         body_text: item.bodyText,
         body_html: item.bodyHtml,
+        target_email: item.targetEmail.toLowerCase(),
+        unsubscribe_url: item.unsubscribeUrl,
         status: 'pending',
         scheduled_for: item.scheduledFor ? item.scheduledFor.toISOString() : new Date().toISOString(),
       },
@@ -40,6 +43,15 @@ export async function addToQueue(item: QueueItem) {
     .single();
 
   if (error) {
+    if (error.code === '23505') {
+      const { data: existing } = await supabaseAdmin
+        .from('outreach_queue')
+        .select('*')
+        .eq('lead_id', item.leadId)
+        .in('status', ['pending', 'locked'])
+        .maybeSingle();
+      if (existing) return existing;
+    }
     console.error('Failed to add to outreach queue:', error);
     throw error;
   }
@@ -54,38 +66,12 @@ export async function addToQueue(item: QueueItem) {
  * Processes pending items using an atomic-like claim to prevent duplicate sends.
  */
 export async function processQueue(batchSize = 10) {
-  // 1. Fetch IDs of pending items
-  const { data: candidates, error: fetchError } = await supabaseAdmin
-    .from('outreach_queue')
-    .select('id')
-    .eq('status', 'pending')
-    .lte('scheduled_for', new Date().toISOString())
-    .order('scheduled_for', { ascending: true })
-    .limit(batchSize);
+  const configuredDailyLimit = Number.parseInt(process.env.OUTREACH_DAILY_LIMIT || '30', 10);
+  const dailyLimit = Number.isFinite(configuredDailyLimit) ? Math.max(1, Math.min(configuredDailyLimit, 1000)) : 30;
+  const safeBatchSize = Math.max(1, Math.min(batchSize, 50));
 
-  if (fetchError) {
-    console.error('Failed to fetch outreach queue candidates:', fetchError);
-    return;
-  }
-
-  if (!candidates || candidates.length === 0) {
-    return { processed: 0 };
-  }
-
-  const candidateIds = candidates.map(c => c.id);
-
-  // 2. Atomically lock these specific IDs (only if they are STILL pending)
-  const lockedBy = `worker-${Math.random().toString(36).substring(7)}`;
   const { data: lockedItems, error: lockError } = await supabaseAdmin
-    .from('outreach_queue')
-    .update({ 
-      status: 'locked', 
-      locked_at: new Date().toISOString(),
-      locked_by: lockedBy
-    })
-    .in('id', candidateIds)
-    .eq('status', 'pending')
-    .select('id, lead_id, subject, body_text, body_html, attempt_count');
+    .rpc('claim_outreach_queue', { batch_limit: safeBatchSize, daily_limit: dailyLimit });
 
   if (lockError || !lockedItems || lockedItems.length === 0) {
     console.log('Failed to lock or items were claimed by another worker.');
@@ -95,34 +81,40 @@ export async function processQueue(batchSize = 10) {
   // 3. Process the successfully locked items
   for (const item of lockedItems) {
     try {
-      // Re-fetch email from the leads table
-      const { data: leadData } = await supabaseAdmin
-        .from('leads')
-        .select('email')
-        .eq('id', item.lead_id)
-        .single();
-
-      let targetEmail = leadData?.email || null;
+      const targetEmail = item.target_email;
 
       if (!targetEmail) {
-        await markQueueFailed(item.id, item.lead_id, 'No email found for lead');
+        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'No target email stored for queue item');
         continue;
       }
 
       // Just-in-time suppression check
       if (await isSuppressed(targetEmail)) {
-        await markQueueFailed(item.id, item.lead_id, 'Email became suppressed before sending');
+        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Email became suppressed before sending', false);
         continue;
       }
       
       await logEvent(item.lead_id, item.id, 'sending');
+
+      const outboundMessageId = `<outreach-${item.id}@${(process.env.EMAIL_FROM || 'localhost').split('@').pop()}>`;
+      const { error: reservationError } = await supabaseAdmin
+        .from('outreach_queue')
+        .update({ provider_message_id: outboundMessageId, provider: 'smtp', updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+        .eq('status', 'locked');
+      if (reservationError) {
+        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Could not reserve provider message ID');
+        continue;
+      }
 
       // Send Email using the snapshot!
       const result = await sendOutreachEmail({
         to: targetEmail,
         subject: item.subject,
         html: item.body_html,
-        text: item.body_text
+        text: item.body_text,
+        messageId: outboundMessageId,
+        unsubscribeUrl: item.unsubscribe_url || undefined,
       });
 
       if (result.success) {
@@ -146,31 +138,45 @@ export async function processQueue(batchSize = 10) {
           .eq('id', item.lead_id);
 
       } else {
-        await markQueueFailed(item.id, item.lead_id, result.error?.toString() || 'Unknown provider error');
+        await markQueueFailed(item.id, item.lead_id, item.attempt_count, result.error?.toString() || 'Unknown provider error');
       }
       
-    } catch (err: any) {
-       await markQueueFailed(item.id, item.lead_id, err.message || 'Unexpected crash');
+    } catch (error: unknown) {
+       await markQueueFailed(item.id, item.lead_id, item.attempt_count, error instanceof Error ? error.message : 'Unexpected crash');
     }
   }
 
   return { processed: lockedItems.length };
 }
 
-async function markQueueFailed(queueId: string, leadId: string, errorMessage: string) {
+async function markQueueFailed(queueId: string, leadId: string, attemptCount: number, errorMessage: string, retry = true) {
+  const shouldRetry = retry && attemptCount < 3;
+  const retryDelayMinutes = Math.min(60, 5 * Math.pow(2, Math.max(0, attemptCount - 1)));
   await supabaseAdmin
     .from('outreach_queue')
     .update({ 
-      status: 'failed', 
+      status: shouldRetry ? 'pending' : 'failed',
       error_message: errorMessage,
+      scheduled_for: shouldRetry ? new Date(Date.now() + retryDelayMinutes * 60_000).toISOString() : undefined,
+      locked_at: null,
+      locked_by: null,
+      provider_message_id: shouldRetry ? null : undefined,
       updated_at: new Date().toISOString() 
     })
     .eq('id', queueId);
     
-  await logEvent(leadId, queueId, 'failed', null, { error: errorMessage });
+  await logEvent(leadId, queueId, shouldRetry ? 'deferred' : 'failed', null, { error: errorMessage, attemptCount });
+
+  if (!shouldRetry) {
+    await supabaseAdmin
+      .from('leads')
+      .update({ status: retry ? 'rejected' : 'suppressed' })
+      .eq('id', leadId)
+      .eq('status', 'approved');
+  }
 }
 
-export async function logEvent(leadId: string, queueId: string | null, eventType: string, providerMsgId?: string | null, metadata?: any) {
+export async function logEvent(leadId: string, queueId: string | null, eventType: string, providerMsgId?: string | null, metadata?: Record<string, unknown>) {
   await supabaseAdmin
     .from('email_events')
     .insert([{

@@ -3,9 +3,15 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { addToQueue } from '@/lib/email/queue';
 import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
 import { isSuppressed } from '@/lib/email/suppression';
+import { hasDashboardSession } from '@/lib/auth';
+import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
 
 export async function POST(request: Request) {
   try {
+    if (!(await hasDashboardSession())) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { leadId } = body;
 
@@ -16,7 +22,7 @@ export async function POST(request: Request) {
     // 1. Fetch lead and enrichment data to snapshot content
     const { data: lead, error: fetchError } = await supabaseAdmin
       .from('leads')
-      .select('*, leads_enrichment(discovered_emails)')
+      .select('*')
       .eq('id', leadId)
       .single();
 
@@ -28,13 +34,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Only new leads can be approved' }, { status: 400 });
     }
 
-    const enrichment = lead.leads_enrichment as any;
-    let targetEmail = null;
-    if (enrichment?.discovered_emails && Array.isArray(enrichment.discovered_emails)) {
-      targetEmail = enrichment.discovered_emails[0]?.email;
-    }
+    const targetEmail = lead.email;
 
-    if (!targetEmail || !lead.drafted_pitch) {
+    if (!targetEmail || !lead.drafted_email_pitch) {
       return NextResponse.json({ error: 'Lead is missing an email or draft pitch' }, { status: 400 });
     }
 
@@ -46,8 +48,8 @@ export async function POST(request: Request) {
 
     // 3. Render snapshots
     const businessName = lead.business_name || 'Business Owner';
-    const draft = lead.drafted_pitch;
-    const unsubscribeLink = `https://${process.env.NEXT_PUBLIC_SITE_URL || 'localhost:3000'}/unsubscribe?lead=${leadId}`;
+    const draft = lead.drafted_email_pitch;
+    const unsubscribeLink = buildUnsubscribeUrl(leadId);
     
     const html = buildOutreachHtml({ businessName, body: draft, unsubscribeLink });
     const text = buildOutreachText({ businessName, body: draft, unsubscribeLink });
@@ -65,17 +67,23 @@ export async function POST(request: Request) {
     }
 
     // 5. Add snapshot to outreach queue
-    await addToQueue({
-      leadId: leadId,
-      subject: subject,
-      bodyHtml: html,
-      bodyText: text,
-      targetEmail: targetEmail
-    });
+    try {
+      await addToQueue({
+        leadId: leadId,
+        subject: subject,
+        bodyHtml: html,
+        bodyText: text,
+        targetEmail: targetEmail,
+        unsubscribeUrl: buildOneClickUnsubscribeUrl(leadId),
+      });
+    } catch (queueError) {
+      await supabaseAdmin.from('leads').update({ status: 'new' }).eq('id', leadId).eq('status', 'approved');
+      throw queueError;
+    }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in approve route:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ScrapeJob } from '@/lib/types';
-import { Search, Loader2, MapPin, Building2, Hash, X, LogOut, ChevronRight, LayoutDashboard, Clock, Users, Trash2, Settings } from 'lucide-react';
+import { Search, Loader2, MapPin, Building2, Hash, X, ChevronRight, Clock, Users, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface BatchListClientProps {
@@ -14,6 +14,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
   const [scrapeLocation, setScrapeLocation] = useState('');
   const [scrapeCategory, setScrapeCategory] = useState('');
   const [scrapeMaxResults, setScrapeMaxResults] = useState(50);
+  const [scrapeChannel, setScrapeChannel] = useState<'email' | 'whatsapp' | 'instantly'>('email');
   const [isScraping, setIsScraping] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -21,11 +22,6 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setActionFeedback({ type, message });
     setTimeout(() => setActionFeedback(null), 3000);
-  };
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/login', { method: 'DELETE' });
-    window.location.href = '/login';
   };
 
   const handleScrape = async () => {
@@ -39,6 +35,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
           location: scrapeLocation.trim(),
           category: scrapeCategory.trim(),
           maxResults: scrapeMaxResults,
+          channel: scrapeChannel,
         }),
       });
       const data = await response.json();
@@ -47,6 +44,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
       setShowScrapeModal(false);
       setScrapeLocation('');
       setScrapeCategory('');
+      setScrapeChannel('email');
       setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
       showFeedback('error', err instanceof Error ? err.message : 'Scrape request failed.');
@@ -104,7 +102,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
               <Search className="w-12 h-12 text-slate-700 mb-4" />
               <h3 className="text-lg font-medium text-slate-300 mb-2">No campaigns yet</h3>
               <p className="text-sm text-slate-500 mb-6 max-w-sm">
-                Start by finding some leads. Click "New Scrape" to pull data from Google Maps.
+                Start by finding some leads. Click &quot;New Scrape&quot; to pull data from Google Maps.
               </p>
               <button
                 onClick={() => setShowScrapeModal(true)}
@@ -187,6 +185,19 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Outreach Channel</label>
+                <select
+                  value={scrapeChannel}
+                  onChange={(e) => setScrapeChannel(e.target.value as 'email' | 'whatsapp' | 'instantly')}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/30 transition-all"
+                >
+                  <option value="email">Automatic SMTP email</option>
+                  <option value="whatsapp">Manual WhatsApp</option>
+                  <option value="instantly">Instantly campaign</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1.5">
                   <MapPin className="inline w-3.5 h-3.5 mr-1 text-slate-500" />

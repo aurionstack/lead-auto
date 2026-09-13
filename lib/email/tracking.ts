@@ -9,7 +9,7 @@ export interface WebhookEvent {
   email: string; // Target email
   eventType: 'delivered' | 'bounced' | 'opened' | 'clicked' | 'replied' | 'complained' | 'unsubscribed';
   timestamp: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -34,20 +34,15 @@ export async function logEmailEvent(event: WebhookEvent) {
     }
   }
 
-  // 1b. Fallback: try finding lead by email in enrichment table if no message ID matched
+  // 1b. Fallback: resolve the primary lead email when a provider omits message ID.
   if (!leadId) {
-    const { data: enrichmentItems } = await supabaseAdmin
-      .from('leads_enrichment')
-      .select('lead_id, discovered_emails')
-      .limit(10); // A naive fallback search; in production, you'd index emails directly.
-
-    if (enrichmentItems) {
-      const match = enrichmentItems.find((e: any) => 
-        Array.isArray(e.discovered_emails) && 
-        e.discovered_emails.some((em: any) => em.email === event.email)
-      );
-      if (match) leadId = match.lead_id;
-    }
+    const { data: lead } = await supabaseAdmin
+      .from('leads')
+      .select('id')
+      .ilike('email', event.email)
+      .limit(1)
+      .maybeSingle();
+    if (lead) leadId = lead.id;
   }
 
   // 2. Insert into email_events

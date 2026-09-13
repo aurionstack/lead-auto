@@ -15,9 +15,8 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
-import { SESSION_COOKIE_NAME } from '@/app/api/auth/login/route';
+import { hasDashboardSession } from '@/lib/auth';
 import type { LeadStatus } from '@/lib/types';
 
 const VALID_STATUSES: LeadStatus[] = ['new', 'approved', 'contacted', 'rejected'];
@@ -31,10 +30,7 @@ export async function PATCH(
   { params }: RouteParams
 ): Promise<NextResponse> {
   // ── 1. Verify session cookie (dashboard actions are gated) ─
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
-
-  if (!sessionCookie || sessionCookie.value !== 'authenticated') {
+  if (!(await hasDashboardSession())) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -46,7 +42,7 @@ export async function PATCH(
   }
 
   // ── 3. Parse request body ──────────────────────────────────
-  let body: { status?: LeadStatus; drafted_pitch?: string };
+  let body: { status?: LeadStatus; drafted_pitch?: string; drafted_email_pitch?: string };
   try {
     body = await request.json();
   } catch {
@@ -73,20 +69,31 @@ export async function PATCH(
     updatePayload.drafted_pitch = body.drafted_pitch;
   }
 
+  if (body.drafted_email_pitch !== undefined) {
+    if (typeof body.drafted_email_pitch !== 'string') {
+      return NextResponse.json({ error: 'drafted_email_pitch must be a string.' }, { status: 400 });
+    }
+    updatePayload.drafted_email_pitch = body.drafted_email_pitch;
+  }
+
   if (Object.keys(updatePayload).length === 0) {
     return NextResponse.json(
-      { error: 'No valid fields to update. Provide status and/or drafted_pitch.' },
+      { error: 'No valid fields to update.' },
       { status: 400 }
     );
   }
 
   // ── 4. Update lead in Supabase (service role bypasses RLS) ─
-  const { data, error } = await supabaseAdmin
+  let updateQuery = supabaseAdmin
     .from('leads')
     .update(updatePayload)
-    .eq('id', id)
-    .select('id, status, drafted_pitch')
-    .single();
+    .eq('id', id);
+  if (body.status !== undefined) {
+    updateQuery = updateQuery.in('status', ['new', 'approved']);
+  }
+  const { data, error } = await updateQuery
+    .select('id, status, drafted_pitch, drafted_email_pitch')
+    .maybeSingle();
 
   if (error) {
     console.error(`[leads/[id]] Error updating lead ${id}:`, error);
@@ -97,7 +104,7 @@ export async function PATCH(
   }
 
   if (!data) {
-    return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
+    return NextResponse.json({ error: 'Lead not found or is no longer actionable.' }, { status: 409 });
   }
 
   return NextResponse.json({ success: true, lead: data });

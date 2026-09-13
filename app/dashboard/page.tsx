@@ -5,6 +5,8 @@ import { Suspense } from 'react';
 import { supabaseAdmin } from '@/lib/supabase';
 import DashboardTabs from '@/components/dashboard/DashboardTabs';
 import { Loader2 } from 'lucide-react';
+import { hasDashboardSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
 async function fetchDashboardData() {
   // 1. Fetch Cron Jobs (Scrape Jobs)
@@ -62,6 +64,7 @@ async function fetchDashboardData() {
 }
 
 export default async function DashboardPage() {
+  if (!(await hasDashboardSession())) redirect('/login');
   const data = await fetchDashboardData();
 
   return (

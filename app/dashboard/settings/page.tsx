@@ -4,6 +4,8 @@
 
 import { Suspense } from 'react';
 import { supabaseAdmin } from '@/lib/supabase';
+import { hasDashboardSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import type { SearchConfig } from '@/lib/types';
 import SearchConfigsClient from '@/components/dashboard/SearchConfigsClient';
 import { Loader2 } from 'lucide-react';
@@ -23,6 +25,7 @@ async function fetchConfigs(): Promise<SearchConfig[]> {
 }
 
 export default async function SettingsPage() {
+  if (!(await hasDashboardSession())) redirect('/login');
   const configs = await fetchConfigs();
 
   return (

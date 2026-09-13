@@ -12,28 +12,38 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { hasDashboardSession } from '@/lib/auth';
 
 const APIFY_ACTOR_ID = 'compass~crawler-google-places';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!(await hasDashboardSession())) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  }
+
   const apifyToken = process.env.APIFY_TOKEN;
-  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET;
+  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET;
   if (!apifyToken || !webhookSecret) {
     return NextResponse.json({ error: 'APIFY_TOKEN or APIFY_WEBHOOK_SECRET not configured.' }, { status: 500 });
   }
 
   // Parse request body
-  let body: { location?: string; category?: string; maxResults?: number };
+  let body: { location?: string; category?: string; maxResults?: number; channel?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { location, category, maxResults = 50 } = body;
+  const { location, category, maxResults = 50, channel = 'email' } = body;
 
-  if (!location || !category) {
+  if (
+    typeof location !== 'string' || !location.trim() || location.length > 160 ||
+    typeof category !== 'string' || !category.trim() || category.length > 120 ||
+    !Number.isInteger(maxResults) || maxResults < 1 || maxResults > 200 ||
+    !['email', 'whatsapp', 'instantly'].includes(channel)
+  ) {
     return NextResponse.json(
       { error: 'Both location and category are required.' },
       { status: 400 }
@@ -41,15 +51,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Build the webhook URL so Apify calls back to our system when done
-  const appUrl = request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://lead-auto.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
   // Build search queries — e.g. "restaurants in Mumbai"
-  const searchQuery = `${category} in ${location}`;
+  const cleanLocation = location.trim();
+  const cleanCategory = category.trim();
+  const searchQuery = `${cleanCategory} in ${cleanLocation}`;
 
   // 1. Create a new scrape job in the database
   const { data: jobData, error: jobError } = await supabaseAdmin
     .from('scrape_jobs')
-    .insert([{ location, category, status: 'scraping' }])
+    .insert([{ location: cleanLocation, category: cleanCategory, channel, status: 'scraping' }])
     .select('id')
     .single();
 
@@ -60,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const jobId = jobData.id;
 
-  const webhookUrl = `${appUrl}/api/webhooks/apify?jobId=${jobId}&token=${webhookSecret}`;
+  const webhookUrl = `${appUrl}/api/webhooks/apify?jobId=${jobId}`;
 
   console.log(`[scrape] Triggering Apify for: "${searchQuery}", max: ${maxResults}, jobId: ${jobId}`);
 
@@ -68,7 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     {
       eventTypes: ['ACTOR.RUN.SUCCEEDED'],
       requestUrl: webhookUrl,
-      headersTemplate: "{\n  \"ngrok-skip-browser-warning\": \"true\"\n}"
+      headersTemplate: JSON.stringify({ Authorization: `Bearer ${webhookSecret}` })
     }
   ];
   const webhooksBase64 = Buffer.from(JSON.stringify(webhooks)).toString('base64');
@@ -91,6 +103,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!apifyResponse.ok) {
       const errorText = await apifyResponse.text();
       console.error(`[scrape] Apify API error ${apifyResponse.status}: ${errorText}`);
+      await supabaseAdmin.from('scrape_jobs').update({ status: 'failed' }).eq('id', jobId);
       return NextResponse.json(
         { error: 'Failed to start Apify scrape.', details: errorText },
         { status: 502 }
@@ -111,6 +124,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } catch (err) {
     console.error('[scrape] Network error calling Apify:', err);
+    await supabaseAdmin.from('scrape_jobs').update({ status: 'failed' }).eq('id', jobId);
     return NextResponse.json({ error: 'Network error starting scrape.' }, { status: 502 });
   }
 }

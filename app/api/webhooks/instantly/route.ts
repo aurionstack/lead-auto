@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramNotification } from '@/lib/telegram';
+import { logEmailEvent } from '@/lib/email/tracking';
 
 export async function POST(request: NextRequest) {
   const secret = process.env.INSTANTLY_WEBHOOK_SECRET;
@@ -28,6 +29,17 @@ export async function POST(request: NextRequest) {
     const leadName = payload.lead_name || payload.data?.name || 'Unknown Lead';
     const subject = payload.subject || payload.data?.subject || 'No Subject';
     const bodyText = payload.text || payload.body || payload.data?.text || payload.data?.body || 'No content provided';
+    const messageId = payload.message_id || payload.data?.message_id || payload.id;
+
+    if (leadEmail !== 'Unknown Email') {
+      await logEmailEvent({
+        email: leadEmail,
+        eventType: 'replied',
+        messageId,
+        timestamp: new Date(),
+        metadata: payload,
+      });
+    }
 
     // Truncate the body text
     const truncatedBody = bodyText.length > 300 ? bodyText.substring(0, 300) + '...' : bodyText;
@@ -40,10 +52,9 @@ export async function POST(request: NextRequest) {
 
     if (!success) {
       console.error('[Webhook/Instantly] Failed to send Telegram notification');
-      return NextResponse.json({ error: 'Failed to send Telegram notification' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Telegram notification sent' });
+    return NextResponse.json({ success: true, telegramNotified: success });
 
   } catch (error) {
     console.error('[Webhook/Instantly] Error processing webhook:', error);

@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { hasDashboardSession } from '@/lib/auth';
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await hasDashboardSession())) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     if (!id) {
@@ -25,7 +30,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true, message: 'Campaign deleted successfully' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[jobs] Unexpected error deleting job:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -4,12 +4,14 @@ import { useState } from 'react';
 import type { SearchConfig } from '@/lib/types';
 import { Settings, Plus, Loader2, MapPin, Building2, Trash2, Mail, MessageCircle, Clock, LayoutDashboard, LogOut, Search, X } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Props {
   configs: SearchConfig[];
 }
 
 export default function SearchConfigsClient({ configs }: Props) {
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState('');
@@ -19,7 +21,8 @@ export default function SearchConfigsClient({ configs }: Props) {
 
   const handleLogout = async () => {
     await fetch('/api/auth/login', { method: 'DELETE' });
-    window.location.href = '/login';
+    router.replace('/login');
+    router.refresh();
   };
 
   const handleAdd = async () => {
@@ -36,7 +39,7 @@ export default function SearchConfigsClient({ configs }: Props) {
       } else {
         alert('Failed to add config');
       }
-    } catch (err) {
+    } catch {
       alert('Error adding config');
     } finally {
       setIsSubmitting(false);
@@ -53,7 +56,7 @@ export default function SearchConfigsClient({ configs }: Props) {
       } else {
         alert('Failed to delete config');
       }
-    } catch (err) {
+    } catch {
       alert('Error deleting config');
     } finally {
       setDeletingId(null);
@@ -250,6 +253,7 @@ export default function SearchConfigsClient({ configs }: Props) {
                 >
                   <option value="email">Email Campaign (SaaS/Internal Tools)</option>
                   <option value="whatsapp">WhatsApp Pipeline (Local Businesses)</option>
+                  <option value="instantly">Instantly Campaign</option>
                 </select>
               </div>
             </div>

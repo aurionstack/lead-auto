@@ -25,9 +25,7 @@ import { cookies } from 'next/headers';
 import { isRateLimited, recordFailedAttempt, clearAttempts } from '@/lib/rate-limit';
 import { SignJWT } from 'jose';
 import crypto from 'crypto';
-
-// Session cookie name — used by middleware to gate /dashboard
-export const SESSION_COOKIE_NAME = 'lead_sys_session';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 
 // Session token — now a JWT instead of a static string
 // The token is signed using SESSION_SECRET.
@@ -47,7 +45,8 @@ function getClientIp(request: NextRequest): string {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const adminPassword = process.env.DASHBOARD_ADMIN_PASSWORD;
-  if (!adminPassword) {
+  const sessionSecret = process.env.SESSION_SECRET || process.env.CRON_SECRET;
+  if (!adminPassword || !sessionSecret) {
     console.error('[auth/login] DASHBOARD_ADMIN_PASSWORD is not configured.');
     return NextResponse.json(
       { error: 'Server misconfiguration.' },
@@ -123,9 +122,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const cookieStore = await cookies();
   
-  const secret = new TextEncoder().encode(process.env.SESSION_SECRET || 'fallback-secret-for-dev-only');
+  const secret = new TextEncoder().encode(sessionSecret);
   const token = await new SignJWT({ authenticated: true })
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer('lead-system')
+    .setAudience('dashboard')
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
     .sign(secret);
@@ -150,13 +151,9 @@ export async function DELETE(): Promise<NextResponse> {
 
 function timingSafeEqual(a: string, b: string): boolean {
   try {
-    const aBuf = Buffer.from(a);
-    const bBuf = Buffer.from(b);
-    if (aBuf.length !== bBuf.length) {
-      crypto.timingSafeEqual(aBuf, aBuf); // dummy call
-      return false;
-    }
-    return crypto.timingSafeEqual(aBuf, bBuf);
+    const aHash = crypto.createHash('sha256').update(a, 'utf8').digest();
+    const bHash = crypto.createHash('sha256').update(b, 'utf8').digest();
+    return crypto.timingSafeEqual(aHash, bHash);
   } catch {
     return false;
   }

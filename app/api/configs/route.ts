@@ -1,31 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { cookies } from 'next/headers';
-import { SESSION_COOKIE_NAME } from '@/app/api/auth/login/route';
+import { hasDashboardSession } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
-
-  if (!sessionCookie || sessionCookie.value !== 'authenticated') {
+  if (!(await hasDashboardSession())) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
   try {
     const { search_query, location, channel } = await request.json();
 
-    if (!search_query || !location || !channel) {
+    if (
+      typeof search_query !== 'string' || !search_query.trim() || search_query.length > 120 ||
+      typeof location !== 'string' || !location.trim() || location.length > 160 ||
+      !['email', 'whatsapp', 'instantly'].includes(channel)
+    ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const { error } = await supabaseAdmin
       .from('search_configs')
-      .insert([{ search_query, location, channel }]);
+      .insert([{ search_query: search_query.trim(), location: location.trim(), channel }]);
 
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
   }
 }

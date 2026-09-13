@@ -10,13 +10,15 @@ import type { Lead } from '@/lib/types';
 import DashboardClient from '@/components/dashboard/DashboardClient';
 import { Loader2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
+import { hasDashboardSession } from '@/lib/auth';
 
 async function fetchLeadsForJob(jobId: string): Promise<Lead[]> {
   const { data, error } = await supabaseAdmin
     .from('leads')
     .select('*')
     .eq('scrape_job_id', jobId)
-    .neq('status', 'rejected')
+    .in('status', ['new', 'processing', 'approved'])
     .order('opportunity_score', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
@@ -29,6 +31,7 @@ async function fetchLeadsForJob(jobId: string): Promise<Lead[]> {
 }
 
 export default async function JobPage({ params }: { params: { id: string } }) {
+  if (!(await hasDashboardSession())) redirect('/login');
   const { id } = await params;
   
   if (!id) return notFound();

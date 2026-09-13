@@ -7,7 +7,8 @@ import { Lock, Eye, EyeOff, AlertTriangle, ShieldOff, Zap } from 'lucide-react';
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/dashboard';
+  const requestedRedirect = searchParams.get('redirect');
+  const redirectTo = requestedRedirect?.startsWith('/dashboard') ? requestedRedirect : '/dashboard';
 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

@@ -14,13 +14,14 @@
 //     4. Returns HTTP 200 to Apify in < 1 second
 //
 //   AI scoring is deferred to the async cron worker:
-//   /api/cron/process-leads (runs every 10 min via Vercel Cron)
+//   /api/cron/process-leads (runs every 10 min via GitHub Actions)
 //
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { ApifyLeadItem } from '@/lib/types';
+import { isBearerAuthorized } from '@/lib/auth';
 
 export const maxDuration = 60;
 
@@ -28,6 +29,10 @@ export const maxDuration = 60;
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!isBearerAuthorized(request, process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   // ── 1. Validate Apify Token is configured ──────────────────
   const apifyToken = process.env.APIFY_TOKEN;
   if (!apifyToken) {
@@ -62,15 +67,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { searchParams } = new URL(request.url);
   const jobId = searchParams.get('jobId');
-  const token = searchParams.get('token');
-
-  const expectedToken = process.env.APIFY_WEBHOOK_SECRET;
-  if (!expectedToken || token !== expectedToken) {
-    console.warn(`[webhook/apify] Unauthorized webhook attempt.`);
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
   console.log(`[webhook/apify] Received dataset ID: ${datasetId}, jobId: ${jobId}`);
+
+  let channel: 'email' | 'whatsapp' | 'instantly' = 'email';
+  if (jobId) {
+    const { data: job } = await supabaseAdmin
+      .from('scrape_jobs')
+      .select('channel')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (job?.channel && ['email', 'whatsapp', 'instantly'].includes(job.channel)) {
+      channel = job.channel;
+    }
+  }
 
   // ── 3. Fetch items from Apify Dataset API ──────────────────
   // Limit to 1000 items per webhook call to bound execution time.
@@ -134,6 +144,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     review_count: item.reviewsCount ?? null,
     address: item.address ?? null,
     website: item.website ?? null,
+    channel,
     scrape_job_id: jobId || null,
     // opportunity_score defaults to 0 (unscored)
     // status defaults to 'new'

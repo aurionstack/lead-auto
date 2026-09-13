@@ -29,13 +29,14 @@ export interface SendEmailParams {
   html: string;
   text?: string;
   messageId?: string; // Optional custom message ID for tracking
+  unsubscribeUrl?: string;
 }
 
 /**
  * Sends an email using the configured SMTP provider.
  * Automatically sets the Reply-To header to the business mailbox.
  */
-export async function sendOutreachEmail({ to, subject, html, text, messageId }: SendEmailParams) {
+export async function sendOutreachEmail({ to, subject, html, text, messageId, unsubscribeUrl }: SendEmailParams) {
   if (!SMTP_USER || !SMTP_PASS) {
     console.warn('SMTP credentials are not configured. Email will not be sent.');
     return { success: false, error: 'SMTP credentials missing' };
@@ -50,6 +51,10 @@ export async function sendOutreachEmail({ to, subject, html, text, messageId }: 
       text,
       html,
       messageId, // Useful for tracking replies/bounces
+      headers: unsubscribeUrl ? {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      } : undefined,
     });
 
     return { success: true, messageId: info.messageId };
