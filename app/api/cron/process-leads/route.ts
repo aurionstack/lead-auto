@@ -130,14 +130,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const { data: orgSettings } = await supabaseAdmin
         .from('organization_settings')
         .select('gemini_api_key, hunter_api_key')
-        .eq('organization_id', (lead as any).organization_id)
+        .eq('organization_id', lead.organization_id)
         .single();
 
       const geminiApiKey = orgSettings?.gemini_api_key || process.env.GEMINI_API_KEY;
       const hunterApiKey = getHunterApiKey(orgSettings?.hunter_api_key);
 
       if (!geminiApiKey) {
-        console.error(`[cron/process-leads] Gemini API key missing for org ${(lead as any).organization_id}`);
+        console.error(`[cron/process-leads] Gemini API key missing for org ${lead.organization_id}`);
         await supabaseAdmin.from('leads').update({ status: 'new', processing_started_at: null }).eq('id', lead.id);
         results.push({ id: lead.id, status: 'error' });
         continue;
@@ -298,7 +298,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 bodyText: text,
                 targetEmail: targetEmail,
                 unsubscribeUrl: buildOneClickUnsubscribeUrl(lead.id),
-              }, (lead as any).organization_id);
+              }, lead.organization_id);
               await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
               console.log(`[cron/process-leads] Auto-queued lead ${lead.id} for email outreach`);
             } catch (qErr) {

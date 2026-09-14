@@ -1,45 +1,56 @@
 // ============================================================
 // app/dashboard/page.tsx — Dashboard Server Component
 // ============================================================
-import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase-server';
 import DashboardTabs from '@/components/dashboard/DashboardTabs';
-import { Loader2 } from 'lucide-react';
 import { hasDashboardSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import type { DashboardData, LeadStatus, OutreachRecord, ScrapeJob } from '@/lib/types';
 
-async function fetchDashboardData() {
+type LeadSummary = { status: LeadStatus; created_at: string; opportunity_score: number | null };
+type QueueSummary = { status: 'pending' | 'locked' | 'sent' | 'failed'; sent_at: string | null; updated_at: string };
+
+async function fetchDashboardData(): Promise<DashboardData> {
   const supabase = await createClient();
 
-  // 1. Fetch Cron Jobs (Scrape Jobs)
-  const { data: jobs } = await supabase
-    .from('scrape_jobs')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const [jobsResult, sentResult, leadsResult, queueResult] = await Promise.all([
+    supabase.from('scrape_jobs').select('*').order('created_at', { ascending: false }).limit(24),
+    supabase
+      .from('outreach_queue')
+      .select('id, subject, body_text, body_html, sent_at, leads (business_name, email)')
+      .eq('status', 'sent')
+      .order('sent_at', { ascending: false })
+      .limit(100),
+    supabase.from('leads').select('status, created_at, opportunity_score'),
+    supabase.from('outreach_queue').select('status, sent_at, updated_at'),
+  ]);
 
-  // 2. Fetch Sent Emails (Outreach History)
-  const { data: outreach } = await supabase
-    .from('outreach_queue')
-    .select(`
-      *,
-      leads (
-        business_name,
-        email
-      )
-    `)
-    .eq('status', 'sent')
-    .order('sent_at', { ascending: false });
+  const failedQuery = [jobsResult, sentResult, leadsResult, queueResult].find((result) => result.error);
+  if (failedQuery?.error) {
+    console.error('[dashboard] Unable to load workspace:', failedQuery.error.message);
+    throw new Error('The workspace data could not be loaded.');
+  }
 
-  // 3. Fetch Leads Stats
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('status, created_at');
+  const jobs = (jobsResult.data ?? []) as ScrapeJob[];
+  const outreach = (sentResult.data ?? []) as unknown as OutreachRecord[];
+  const leads = (leadsResult.data ?? []) as LeadSummary[];
+  const queue = (queueResult.data ?? []) as QueueSummary[];
 
   const leadStats = {
-    total: leads?.length || 0,
-    contacted: leads?.filter(l => l.status === 'contacted').length || 0,
-    rejected: leads?.filter(l => l.status === 'rejected').length || 0,
-    new: leads?.filter(l => l.status === 'new').length || 0,
+    total: leads.length,
+    contacted: leads.filter((lead) => lead.status === 'contacted').length,
+    rejected: leads.filter((lead) => lead.status === 'rejected').length,
+    new: leads.filter((lead) => ['new', 'processing'].includes(lead.status)).length,
+    qualified: leads.filter((lead) => lead.status === 'approved' || (lead.opportunity_score ?? 0) >= 70).length,
+    replied: leads.filter((lead) => lead.status === 'replied').length,
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const outreachStats = {
+    sent: queue.filter((item) => item.status === 'sent').length,
+    sentToday: queue.filter((item) => item.status === 'sent' && item.sent_at?.startsWith(today)).length,
+    pending: queue.filter((item) => item.status === 'pending' || item.status === 'locked').length,
+    failed: queue.filter((item) => item.status === 'failed').length,
   };
 
   // Generate 7-day Analytics (Emails Sent per day)
@@ -50,7 +61,7 @@ async function fetchDashboardData() {
   }).reverse();
 
   const chartData = last7Days.map(dateStr => {
-    const sentOnDate = outreach?.filter(o => o.sent_at?.startsWith(dateStr)).length || 0;
+    const sentOnDate = queue.filter((item) => item.status === 'sent' && item.sent_at?.startsWith(dateStr)).length;
     return {
       date: dateStr,
       sent: sentOnDate
@@ -58,10 +69,18 @@ async function fetchDashboardData() {
   });
 
   return {
-    jobs: jobs || [],
-    outreach: outreach || [],
+    jobs,
+    outreach,
     leadStats,
-    chartData
+    outreachStats,
+    pipeline: [
+      { label: 'Discovered', value: leadStats.total, tone: '#818cf8' },
+      { label: 'Qualified', value: leadStats.qualified, tone: '#a78bfa' },
+      { label: 'Contacted', value: leadStats.contacted, tone: '#22d3ee' },
+      { label: 'Replied', value: leadStats.replied, tone: '#34d399' },
+    ],
+    chartData,
+    lastActivityAt: queue[0]?.updated_at ?? jobs[0]?.created_at ?? leads[0]?.created_at ?? null,
   };
 }
 
@@ -69,24 +88,7 @@ export default async function DashboardPage() {
   if (!(await hasDashboardSession())) redirect('/login');
   const data = await fetchDashboardData();
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">System Dashboard</h1>
-          <p className="text-slate-400 mt-2">Complete insights and analytics of the autonomous pipeline.</p>
-        </div>
-        
-        <Suspense fallback={
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-          </div>
-        }>
-          <DashboardTabs data={data} />
-        </Suspense>
-      </div>
-    </div>
-  );
+  return <DashboardTabs data={data} />;
 }
 
 export const dynamic = 'force-dynamic';

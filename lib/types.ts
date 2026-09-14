@@ -47,6 +47,7 @@ export interface Lead {
   status: LeadStatus;
   scrape_job_id: string | null;
   created_at: string;
+  organization_id: string;
 }
 
 // Shape of the AI response we enforce via JSON parsing
@@ -84,6 +85,20 @@ export interface SearchConfig {
   is_active: boolean;
   last_scraped_at: string;
   created_at: string;
+  organization_id: string;
+}
+
+export interface OrganizationSettings {
+  organization_id: string;
+  gemini_api_key?: string | null;
+  apify_api_token?: string | null;
+  hunter_api_key?: string | null;
+  smtp_host?: string | null;
+  smtp_port?: number | string | null;
+  smtp_user?: string | null;
+  smtp_password?: string | null;
+  from_email?: string | null;
+  from_name?: string | null;
 }
 
 export interface OutreachRecord {
@@ -98,6 +113,21 @@ export interface OutreachRecord {
 export interface DashboardData {
   jobs: ScrapeJob[];
   outreach: OutreachRecord[];
-  leadStats: { total: number; contacted: number; rejected: number; new: number };
+  leadStats: {
+    total: number;
+    contacted: number;
+    rejected: number;
+    new: number;
+    qualified: number;
+    replied: number;
+  };
+  outreachStats: {
+    sent: number;
+    sentToday: number;
+    pending: number;
+    failed: number;
+  };
+  pipeline: { label: string; value: number; tone: string }[];
   chartData: { date: string; sent: number }[];
+  lastActivityAt: string | null;
 }

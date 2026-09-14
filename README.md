@@ -14,11 +14,12 @@ WhatsApp leads remain in the dashboard for manual outreach. Instantly is an opti
 
 ## Setup
 
-1. Copy `.env.local.example` to `.env.local` and fill in every integration you use.
-2. Apply every SQL migration in `supabase/migrations`, including `007_reconcile_and_harden_pipeline.sql`.
-3. Configure the application environment variables in Vercel.
-4. Add `APP_URL` and `CRON_SECRET` as GitHub Actions repository secrets. `APP_URL` must be the production origin, such as `https://leads.example.com`, and `CRON_SECRET` must exactly match the value configured in Vercel.
-5. Deploy the application and enable GitHub Actions. GitHub Actions is the only production scheduler; the project deliberately has no Vercel Cron configuration.
+1. Use Node.js 22 (`nvm use 22.20.0` on nvm-windows, or the version in `.nvmrc` on compatible managers).
+2. Copy `.env.local.example` to `.env.local` and fill in every integration you use.
+3. Apply every SQL migration in `supabase/migrations`, including `008_multi_tenant_schema.sql`.
+4. Configure the application environment variables in Vercel.
+5. Add `APP_URL` and `CRON_SECRET` as GitHub Actions repository secrets. `APP_URL` must be the production origin, such as `https://leads.example.com`, and `CRON_SECRET` must exactly match the value configured in Vercel.
+6. Deploy the application and enable GitHub Actions. GitHub Actions is the only production scheduler; the project deliberately has no Vercel Cron configuration.
 
 Important deployment secrets are `SESSION_SECRET`, `CRON_SECRET`, `UNSUBSCRIBE_SECRET`, and each webhook secret. If the dedicated session, unsubscribe, or Apify webhook secret is absent, the application temporarily falls back to `CRON_SECRET` for backward compatibility. Dedicated secrets are strongly recommended.
 

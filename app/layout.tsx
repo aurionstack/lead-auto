@@ -2,9 +2,13 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Lead Automation System',
-  description: 'Internal lead scoring, AI analysis, and WhatsApp outreach dashboard.',
-  robots: 'noindex, nofollow', // Internal tool — prevent search engine indexing
+  title: {
+    default: 'LeadFlow — AI outreach operations',
+    template: '%s | LeadFlow',
+  },
+  description: 'Discover, qualify, and reach the right prospects from one intelligent workspace.',
+  applicationName: 'LeadFlow',
+  robots: 'noindex, nofollow',
 };
 
 export default function RootLayout({

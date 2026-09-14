@@ -1,14 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildOutreachHtml, buildOutreachText } from '../lib/email/templates';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '../lib/email/unsubscribe';
-import path from 'path';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Mock WebSocket for Node 20 compatibility
 if (!globalThis.WebSocket) {
-  globalThis.WebSocket = class {} as any;
+  globalThis.WebSocket = class {} as unknown as typeof WebSocket;
 }
 
 if (!supabaseUrl || !supabaseServiceKey) {

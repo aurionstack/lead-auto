@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase-client';
-import { Save, Key, Mail, Bot, Database } from 'lucide-react';
+import { Save, Mail, Bot, Database } from 'lucide-react';
+import type { OrganizationSettings } from '@/lib/types';
 
-export default function ApiKeysClient({ initialSettings }: { initialSettings: any }) {
+export default function ApiKeysClient({ initialSettings }: { initialSettings: OrganizationSettings }) {
   const [settings, setSettings] = useState(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -25,7 +26,7 @@ export default function ApiKeysClient({ initialSettings }: { initialSettings: an
           apify_api_token: settings.apify_api_token,
           hunter_api_key: settings.hunter_api_key,
           smtp_host: settings.smtp_host,
-          smtp_port: settings.smtp_port ? parseInt(settings.smtp_port) : null,
+          smtp_port: settings.smtp_port ? Number.parseInt(String(settings.smtp_port), 10) : null,
           smtp_user: settings.smtp_user,
           smtp_password: settings.smtp_password,
           from_email: settings.from_email,
@@ -34,8 +35,8 @@ export default function ApiKeysClient({ initialSettings }: { initialSettings: an
 
       if (error) throw error;
       setMessage({ type: 'success', text: 'API keys saved successfully.' });
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to save settings.' });
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save settings.' });
     } finally {
       setIsSaving(false);
     }

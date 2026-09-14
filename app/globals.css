@@ -1,8 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 :root {
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
 }
 
@@ -17,9 +16,19 @@ html {
 }
 
 body {
-  background-color: #020817;  /* slate-950 */
+  background-color: #080a10;
   color: #f8fafc;
   min-height: 100vh;
+}
+
+body::selection {
+  background: rgba(129, 140, 248, 0.28);
+  color: #fff;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Custom scrollbar ─────────────────────────────────────── */

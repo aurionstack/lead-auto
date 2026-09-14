@@ -54,7 +54,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
   };
 
   const handleDelete = async (e: React.MouseEvent, jobId: string) => {
-    e.preventDefault(); // Prevent link click
+    e.preventDefault();
     if (!confirm('Are you sure you want to delete this campaign? All associated leads will be deleted.')) return;
     
     setIsDeleting(jobId);
@@ -76,7 +76,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-white">
+    <div className="flex flex-col text-white">
 
 
       {/* ── Feedback Toast ──────────────────────────────────── */}
@@ -93,9 +93,12 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
       )}
 
       {/* ── Main Content: Grid of Jobs ──────────────────────── */}
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-xl font-semibold mb-6">Recent Scrape Campaigns</h1>
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold">Lead discovery campaigns</h2>
+            <p className="mt-1 text-sm text-slate-500">Launch a search or review the prospects collected in earlier runs.</p>
+          </div>
           
           {jobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 bg-slate-900/30 border border-slate-800/60 rounded-2xl text-center">
@@ -114,8 +117,8 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {jobs.map((job) => (
-                <Link key={job.id} href={`/dashboard/job/${job.id}`}>
-                  <div className="group bg-slate-900/40 hover:bg-slate-800/60 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-5 transition-all cursor-pointer shadow-sm hover:shadow-md">
+                <div key={job.id} className="group relative bg-slate-900/40 hover:bg-slate-800/60 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all shadow-sm hover:shadow-md">
+                  <Link href={`/dashboard/job/${job.id}`} className="block p-5 pr-14">
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-base font-semibold text-slate-200 capitalize group-hover:text-white transition-colors">{job.category}</h3>
@@ -130,14 +133,6 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
                       }`}>
                         {job.status}
                       </div>
-                      <button
-                        onClick={(e) => handleDelete(e, job.id)}
-                        disabled={isDeleting === job.id}
-                        className="ml-3 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors disabled:opacity-50"
-                        title="Delete Campaign"
-                      >
-                        {isDeleting === job.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
                     </div>
                     
                     <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-800/60">
@@ -151,8 +146,17 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
                         <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors ml-1" />
                       </div>
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                  <button
+                    onClick={(e) => handleDelete(e, job.id)}
+                    disabled={isDeleting === job.id}
+                    className="absolute right-4 top-4 z-10 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                    title="Delete campaign"
+                    aria-label={`Delete ${job.category} campaign`}
+                  >
+                    {isDeleting === job.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  </button>
+                </div>
               ))}
             </div>
           )}

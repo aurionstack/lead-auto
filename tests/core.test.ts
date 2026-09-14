@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SignJWT } from 'jose';
 import { isBearerAuthorized, isCronAuthorized } from '../lib/auth';
 import { buildOutreachHtml } from '../lib/email/templates';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl, createUnsubscribeToken, verifyUnsubscribeToken } from '../lib/email/unsubscribe';

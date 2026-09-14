@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, Eye, EyeOff, AlertTriangle, UserPlus, LogIn, Mail } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, Mail, Sparkles, ShieldCheck, WandSparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase-client';
 
 export default function LoginForm() {
@@ -54,7 +54,7 @@ export default function LoginForm() {
           router.refresh();
         }
       }
-    } catch (err: any) {
+    } catch {
       setError('Network error. Please check your connection.');
     } finally {
       setIsLoading(false);
@@ -62,19 +62,25 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-40" />
-      
-      <div className="relative z-10 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-tight">Lead System SaaS</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            {isSignUp ? 'Create your organization account' : 'Sign in to your account'}
-          </p>
+    <div className="relative grid min-h-screen overflow-hidden bg-[#080a10] lg:grid-cols-[1.1fr_.9fr]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(99,102,241,.16),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(34,211,238,.08),transparent_28%)]" />
+      <section className="relative hidden border-r border-white/[0.06] p-12 lg:flex lg:flex-col lg:justify-between xl:p-16">
+        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-600 shadow-xl shadow-indigo-500/20"><Sparkles className="size-5 text-white" /></span><div><p className="text-xl font-bold tracking-tight text-white">LeadFlow</p><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-indigo-300/70">AI revenue engine</p></div></div>
+        <div className="max-w-xl">
+          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/15 bg-indigo-300/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200"><WandSparkles className="size-3.5" /> Prospecting, automated</span>
+          <h1 className="mt-6 text-5xl font-semibold leading-[1.08] tracking-[-0.04em] text-white xl:text-6xl">Turn local discovery into qualified conversations.</h1>
+          <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">Find businesses, enrich every prospect, and launch personalized outreach from one focused workspace.</p>
+          <div className="mt-10 flex items-center gap-6 text-xs text-slate-500"><span className="flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-400" /> Tenant-isolated data</span><span className="flex items-center gap-2"><Sparkles className="size-4 text-indigo-400" /> AI-qualified leads</span></div>
         </div>
+        <p className="text-xs text-slate-700">A calmer way to operate outbound.</p>
+      </section>
 
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/60 rounded-2xl shadow-2xl p-8">
+      <section className="relative flex items-center justify-center p-5 sm:p-10">
+      <div className="w-full max-w-md">
+        <div className="mb-8 lg:hidden"><div className="flex items-center justify-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-400 to-violet-600"><Sparkles className="size-5 text-white" /></span><span className="text-xl font-bold tracking-tight text-white">LeadFlow</span></div></div>
+        <div className="mb-7"><p className="text-sm font-medium text-indigo-300">Welcome to LeadFlow</p><h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">{isSignUp ? 'Create your workspace' : 'Sign in to your workspace'}</h2><p className="mt-2 text-sm text-slate-500">{isSignUp ? 'Start building your automated outbound engine.' : 'Enter your details to continue.'}</p></div>
+
+        <div className="rounded-3xl border border-white/[0.08] bg-[#11141c]/90 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
@@ -114,6 +120,7 @@ export default function LoginForm() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -121,7 +128,7 @@ export default function LoginForm() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg bg-red-950/30 border border-red-900/40 px-3 py-2.5">
+              <div className="flex items-start gap-2 rounded-lg bg-red-950/30 border border-red-900/40 px-3 py-2.5" role="alert">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
                 <p className="text-red-300 text-xs">{error}</p>
               </div>
@@ -146,17 +153,18 @@ export default function LoginForm() {
             <button
               type="button"
               onClick={() => {
-                setIsSignUp(!isSignUp);
+                    setIsSignUp((value) => !value);
                 setError(null);
                 setMessage(null);
               }}
               className="text-slate-400 hover:text-white text-sm transition-colors"
             >
-              {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+              {isSignUp ? 'Already have an account? Sign in' : 'New to LeadFlow? Create a workspace'}
             </button>
           </div>
         </div>
       </div>
+      </section>
     </div>
   );
 }

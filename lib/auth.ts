@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { createClient } from './supabase-server';
 
 export const SESSION_COOKIE_NAME = 'lead_sys_session';

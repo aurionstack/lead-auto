@@ -58,12 +58,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { data: orgSettings } = await supabaseAdmin
     .from('organization_settings')
     .select('apify_api_token')
-    .eq('organization_id', (claimedConfig as any).organization_id)
+    .eq('organization_id', claimedConfig.organization_id)
     .single();
 
   const apifyToken = orgSettings?.apify_api_token || process.env.APIFY_TOKEN;
   if (!apifyToken) {
-    console.error(`[cron/auto-scrape] Apify token missing for org ${(claimedConfig as any).organization_id}`);
+    console.error(`[cron/auto-scrape] Apify token missing for org ${claimedConfig.organization_id}`);
     return NextResponse.json({ error: 'Apify token missing.' }, { status: 500 });
   }
   const webhookSecret = process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET;
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       category: claimedConfig.search_query, 
       channel: claimedConfig.channel, 
       status: 'scraping',
-      organization_id: (claimedConfig as any).organization_id 
+      organization_id: claimedConfig.organization_id
     }])
     .select('id')
     .single();
