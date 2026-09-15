@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hasDashboardSession } from '@/lib/auth';
-import { validateCampaignTarget } from '@/lib/campaign';
+import { validateCampaignTarget } from '@/lib/tools/lead-recovery/campaign';
 
 const APIFY_ACTOR_ID = 'compass~crawler-google-places';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';

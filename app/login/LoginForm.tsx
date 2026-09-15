@@ -65,11 +65,11 @@ export default function LoginForm() {
     <div className="relative grid min-h-screen overflow-hidden bg-[#080a10] lg:grid-cols-[1.1fr_.9fr]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_25%,rgba(99,102,241,.16),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(34,211,238,.08),transparent_28%)]" />
       <section className="relative hidden border-r border-white/[0.06] p-12 lg:flex lg:flex-col lg:justify-between xl:p-16">
-        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-600 shadow-xl shadow-indigo-500/20"><Sparkles className="size-5 text-white" /></span><div><p className="text-xl font-bold tracking-tight text-white">LeadFlow</p><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-indigo-300/70">AI revenue engine</p></div></div>
+        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-600 shadow-xl shadow-indigo-500/20"><Sparkles className="size-5 text-white" /></span><div><p className="text-xl font-bold tracking-tight text-white">AurionStack</p><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-indigo-300/70">Automation Hub</p></div></div>
         <div className="max-w-xl">
-          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/15 bg-indigo-300/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200"><WandSparkles className="size-3.5" /> Prospecting, automated</span>
-          <h1 className="mt-6 text-5xl font-semibold leading-[1.08] tracking-[-0.04em] text-white xl:text-6xl">Turn local discovery into qualified conversations.</h1>
-          <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">Find businesses, enrich every prospect, and launch personalized outreach from one focused workspace.</p>
+          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/15 bg-indigo-300/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200"><WandSparkles className="size-3.5" /> Modular operations</span>
+          <h1 className="mt-6 text-5xl font-semibold leading-[1.08] tracking-[-0.04em] text-white xl:text-6xl">Run every automation from one focused workspace.</h1>
+          <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">Independent tools for lead recovery, creator outreach, and the next AurionStack workflow.</p>
           <div className="mt-10 flex items-center gap-6 text-xs text-slate-500"><span className="flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-400" /> Tenant-isolated data</span><span className="flex items-center gap-2"><Sparkles className="size-4 text-indigo-400" /> AI-qualified leads</span></div>
         </div>
         <p className="text-xs text-slate-700">A calmer way to operate outbound.</p>
@@ -77,8 +77,8 @@ export default function LoginForm() {
 
       <section className="relative flex items-center justify-center p-5 sm:p-10">
       <div className="w-full max-w-md">
-        <div className="mb-8 lg:hidden"><div className="flex items-center justify-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-400 to-violet-600"><Sparkles className="size-5 text-white" /></span><span className="text-xl font-bold tracking-tight text-white">LeadFlow</span></div></div>
-        <div className="mb-7"><p className="text-sm font-medium text-indigo-300">Welcome to LeadFlow</p><h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">{isSignUp ? 'Create your workspace' : 'Sign in to your workspace'}</h2><p className="mt-2 text-sm text-slate-500">{isSignUp ? 'Start building your automated outbound engine.' : 'Enter your details to continue.'}</p></div>
+        <div className="mb-8 lg:hidden"><div className="flex items-center justify-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-400 to-violet-600"><Sparkles className="size-5 text-white" /></span><span className="text-xl font-bold tracking-tight text-white">AurionStack</span></div></div>
+        <div className="mb-7"><p className="text-sm font-medium text-indigo-300">Welcome to AurionStack</p><h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">{isSignUp ? 'Create your workspace' : 'Sign in to your workspace'}</h2><p className="mt-2 text-sm text-slate-500">{isSignUp ? 'Create your automation workspace.' : 'Enter your details to continue.'}</p></div>
 
         <div className="rounded-3xl border border-white/[0.08] bg-[#11141c]/90 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -159,7 +159,7 @@ export default function LoginForm() {
               }}
               className="text-slate-400 hover:text-white text-sm transition-colors"
             >
-              {isSignUp ? 'Already have an account? Sign in' : 'New to LeadFlow? Create a workspace'}
+              {isSignUp ? 'Already have an account? Sign in' : 'New to AurionStack? Create a workspace'}
             </button>
           </div>
         </div>

@@ -6,13 +6,14 @@ import { Settings, Plus, Loader2, MapPin, Building2, Trash2, Mail, MessageCircle
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
-import { ACTIVE_CAMPAIGN } from '@/lib/campaign';
+import { ACTIVE_CAMPAIGN } from '@/lib/tools/lead-recovery/campaign';
 
 interface Props {
   configs: SearchConfig[];
+  embedded?: boolean;
 }
 
-export default function SearchConfigsClient({ configs }: Props) {
+export default function SearchConfigsClient({ configs, embedded = false }: Props) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [query, setQuery] = useState<string>(ACTIVE_CAMPAIGN.targets[0].category);
@@ -31,7 +32,7 @@ export default function SearchConfigsClient({ configs }: Props) {
     if (!query.trim() || !location.trim()) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/configs', {
+      const res = await fetch('/api/tools/lead-recovery/configs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ search_query: query.trim(), location: location.trim(), channel }),
@@ -67,9 +68,9 @@ export default function SearchConfigsClient({ configs }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-white">
+    <div className={`${embedded ? '' : 'min-h-screen'} bg-slate-950 flex flex-col text-white`}>
       {/* ── Top Navigation Bar ──────────────────────────────── */}
-      <header className="h-14 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
+      {!embedded && <header className="h-14 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-800 transition-colors">
             <LayoutDashboard className="w-4 h-4 text-slate-400" />
@@ -103,11 +104,12 @@ export default function SearchConfigsClient({ configs }: Props) {
             Sign Out
           </button>
         </div>
-      </header>
+      </header>}
 
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className={`flex-1 overflow-y-auto ${embedded ? '' : 'p-6'}`}>
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          {embedded && <div className="mb-5 flex justify-end"><button onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"><Plus className="size-4" /> Add inactive target</button></div>}
+          {!embedded && <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-xl font-semibold mb-1">Autonomous Search Targets</h1>
               <p className="text-sm text-slate-500">
@@ -120,7 +122,7 @@ export default function SearchConfigsClient({ configs }: Props) {
             >
               <Plus className="w-4 h-4" /> Add Target
             </button>
-          </div>
+          </div>}
 
           <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden">
             <table className="w-full text-left text-sm">
@@ -129,6 +131,7 @@ export default function SearchConfigsClient({ configs }: Props) {
                   <th className="px-6 py-4 font-medium">Search Query</th>
                   <th className="px-6 py-4 font-medium">Location</th>
                   <th className="px-6 py-4 font-medium">Channel</th>
+                  <th className="px-6 py-4 font-medium">Status</th>
                   <th className="px-6 py-4 font-medium">Last Scraped</th>
                   <th className="px-6 py-4 font-medium text-right">Actions</th>
                 </tr>
@@ -136,6 +139,9 @@ export default function SearchConfigsClient({ configs }: Props) {
               <tbody className="divide-y divide-slate-800/60">
                 {configs.map((config) => (
                   <tr key={config.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${config.is_active ? 'bg-emerald-300/10 text-emerald-300' : 'bg-amber-300/10 text-amber-300'}`}>{config.is_active ? 'Active' : 'Paused'}</span>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 font-medium text-slate-200">
                         <Building2 className="w-4 h-4 text-slate-500" />
@@ -180,7 +186,7 @@ export default function SearchConfigsClient({ configs }: Props) {
                 ))}
                 {configs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                       No search configurations found. Add one to start autonomous scraping.
                     </td>
                   </tr>
@@ -205,7 +211,7 @@ export default function SearchConfigsClient({ configs }: Props) {
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-white">Add Search Target</h2>
-                  <p className="text-xs text-slate-500">The robot will scrape this automatically.</p>
+                  <p className="text-xs text-slate-500">Saved paused. Activation is always a separate decision.</p>
                 </div>
               </div>
               <button

@@ -5,7 +5,7 @@ import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
 import { isSuppressed } from '@/lib/email/suppression';
 import { hasDashboardSession } from '@/lib/auth';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
-import { campaignSequenceId } from '@/lib/campaign';
+import { campaignSequenceId } from '@/lib/tools/lead-recovery/campaign';
 
 export async function POST(request: Request) {
   try {

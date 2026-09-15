@@ -12,15 +12,17 @@ import Link from 'next/link';
 import LeadCard from './LeadCard';
 import MetricCard from './MetricCard';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
 
 interface DashboardClientProps {
   // SECURITY: Only plain serializable Lead[] data received here.
   // The supabaseAdmin client instance is NEVER passed as a prop.
   initialLeads: Lead[];
   isMockData?: boolean;
+  embedded?: boolean;
 }
 
-export default function DashboardClient({ initialLeads, isMockData = false }: DashboardClientProps) {
+export default function DashboardClient({ initialLeads, isMockData = false, embedded = false }: DashboardClientProps) {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(
@@ -186,7 +188,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
 
   // ── Logout ────────────────────────────────────────────────────
   const handleLogout = async () => {
-    await fetch('/api/auth/login', { method: 'DELETE' });
+    await createClient().auth.signOut();
     router.replace('/login');
     router.refresh();
   };
@@ -249,9 +251,9 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-white">
+    <div className={`${embedded ? 'min-h-[680px] overflow-hidden rounded-2xl border border-white/[0.07]' : 'min-h-screen'} bg-slate-950 flex flex-col text-white`}>
       {/* ── Top Navigation Bar ──────────────────────────────── */}
-      <header className="h-14 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
+      {!embedded && <header className="h-14 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30">
             <Zap className="w-4 h-4 text-indigo-400" />
@@ -268,7 +270,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
           </span>
 
           <Link
-            href="/dashboard"
+            href="/dashboard/lead-recovery/campaigns"
             className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -294,7 +296,7 @@ export default function DashboardClient({ initialLeads, isMockData = false }: Da
             Sign Out
           </button>
         </div>
-      </header>
+      </header>}
 
       {/* ── Mock Data Banner ─────────────────────────────────── */}
       {isMockData && !mockBannerDismissed && (

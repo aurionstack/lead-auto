@@ -4,6 +4,9 @@ import { appendComplianceFooter, buildOutreachHtml } from '../lib/email/template
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl, createUnsubscribeToken, verifyUnsubscribeToken } from '../lib/email/unsubscribe';
 import { findEmailWithRegex } from '../lib/email-parser';
 import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedStatesLocation, validateCampaignTarget } from '../lib/campaign';
+import { automationTools, getAutomationTool } from '../lib/tools/registry';
+import { DEFAULT_YOUTUBE_CAMPAIGN } from '../lib/tools/youtube-outreach/types';
+import { mcpBusinessActions } from '../lib/mcp/action-registry';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -70,5 +73,21 @@ describe('active campaign targeting', () => {
     expect(isHomeServiceCategory('Dental implant specialist')).toBe(false);
     expect(validateCampaignTarget('HVAC contractors', 'London, UK')).toMatch(/United States/);
     expect(validateCampaignTarget('Marketing agency', 'Dallas, Texas')).toMatch(/HVAC/);
+  });
+});
+
+describe('automation hub architecture', () => {
+  it('registers independent Lead Recovery and YouTube tools', () => {
+    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach']);
+    expect(getAutomationTool('lead-recovery').route).toBe('/dashboard/lead-recovery');
+    expect(getAutomationTool('youtube-outreach').mcpNamespace).toBe('youtube');
+  });
+
+  it('keeps the YouTube campaign and high-risk MCP actions disabled by default', () => {
+    expect(DEFAULT_YOUTUBE_CAMPAIGN.status).toBe('paused');
+    expect(DEFAULT_YOUTUBE_CAMPAIGN.sender_identity).toBe('samir@aurionstack.dev');
+    const outreachActions = mcpBusinessActions.filter((action) => action.risk === 'outreach');
+    expect(outreachActions.length).toBeGreaterThan(0);
+    expect(outreachActions.every((action) => !action.enabled && action.requiresExplicitAuthorization)).toBe(true);
   });
 });

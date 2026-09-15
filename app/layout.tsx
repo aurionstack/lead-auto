@@ -3,11 +3,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'LeadFlow — AI outreach operations',
-    template: '%s | LeadFlow',
+    default: 'AurionStack Automation Hub',
+    template: '%s | AurionStack',
   },
-  description: 'Discover, qualify, and reach the right prospects from one intelligent workspace.',
-  applicationName: 'LeadFlow',
+  description: 'Operate independent AurionStack automation products from one secure workspace.',
+  applicationName: 'AurionStack Automations',
   robots: 'noindex, nofollow',
 };
 

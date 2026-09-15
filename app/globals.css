@@ -93,3 +93,24 @@ select {
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+.field {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.7rem 0.85rem;
+  color: #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.field:focus {
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.18);
+}
+
+.field:disabled {
+  cursor: not-allowed;
+  color: #94a3b8;
+  opacity: 0.75;
+}

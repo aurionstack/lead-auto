@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase-client';
 import { Save, Mail, Bot, Database } from 'lucide-react';
 import type { OrganizationSettings } from '@/lib/types';
 
-export default function ApiKeysClient({ initialSettings }: { initialSettings: OrganizationSettings }) {
+export default function ApiKeysClient({ initialSettings, embedded = false }: { initialSettings: OrganizationSettings; embedded?: boolean }) {
   const [settings, setSettings] = useState(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -48,12 +48,12 @@ export default function ApiKeysClient({ initialSettings }: { initialSettings: Or
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+    <div className={`${embedded ? '' : 'min-h-screen p-8'} bg-slate-950 text-slate-100`}>
       <div className="max-w-4xl mx-auto space-y-8">
-        <div>
+        {!embedded && <div>
           <h1 className="text-4xl font-bold text-white tracking-tight">API Keys & Settings</h1>
           <p className="text-slate-400 mt-2">Configure your Bring Your Own Key (BYOK) integrations.</p>
-        </div>
+        </div>}
 
         <form onSubmit={handleSave} className="space-y-8">
           {/* AI Settings */}

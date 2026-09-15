@@ -35,7 +35,7 @@ import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
 import { isSuppressed } from '@/lib/email/suppression';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
-import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedStatesLocation } from '@/lib/campaign';
+import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedStatesLocation } from '@/lib/tools/lead-recovery/campaign';
 
 export const maxDuration = 60;
 const BATCH_SIZE = 2;

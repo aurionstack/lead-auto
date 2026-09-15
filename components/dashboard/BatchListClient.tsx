@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { ScrapeJob } from '@/lib/types';
 import { Search, Loader2, MapPin, Building2, Hash, X, ChevronRight, Clock, Users, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { ACTIVE_CAMPAIGN } from '@/lib/campaign';
+import { ACTIVE_CAMPAIGN } from '@/lib/tools/lead-recovery/campaign';
 
 interface BatchListClientProps {
   jobs: ScrapeJob[];
@@ -29,7 +29,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
     if (!scrapeLocation.trim() || !scrapeCategory.trim()) return;
     setIsScraping(true);
     try {
-      const response = await fetch('/api/leads/scrape', {
+      const response = await fetch('/api/tools/lead-recovery/leads/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -119,7 +119,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {jobs.map((job) => (
                 <div key={job.id} className="group relative bg-slate-900/40 hover:bg-slate-800/60 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all shadow-sm hover:shadow-md">
-                  <Link href={`/dashboard/job/${job.id}`} className="block p-5 pr-14">
+                  <Link href={`/dashboard/lead-recovery/job/${job.id}`} className="block p-5 pr-14">
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-base font-semibold text-slate-200 capitalize group-hover:text-white transition-colors">{job.category}</h3>

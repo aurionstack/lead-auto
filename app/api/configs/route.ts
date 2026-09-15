@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hasDashboardSession } from '@/lib/auth';
-import { validateCampaignTarget } from '@/lib/campaign';
+import { validateCampaignTarget } from '@/lib/tools/lead-recovery/campaign';
+import { getCurrentOrganizationId } from '@/lib/tenancy';
 
 export async function POST(request: NextRequest) {
   if (!(await hasDashboardSession())) {
@@ -9,6 +10,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const organizationId = await getCurrentOrganizationId();
+    if (!organizationId) return NextResponse.json({ error: 'No organization found.' }, { status: 403 });
     const { search_query, location, channel } = await request.json();
 
     if (
@@ -28,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const { error } = await supabaseAdmin
       .from('search_configs')
-      .insert([{ search_query: cleanQuery, location: cleanLocation, channel }]);
+      .insert([{ search_query: cleanQuery, location: cleanLocation, channel, organization_id: organizationId, is_active: false }]);
 
     if (error) throw error;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hasDashboardSession } from '@/lib/auth';
+import { getCurrentOrganizationId } from '@/lib/tenancy';
 
 export async function DELETE(
   request: NextRequest,
@@ -12,15 +13,17 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    const organizationId = await getCurrentOrganizationId();
 
-    if (!id) {
+    if (!id || !organizationId) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
     const { error } = await supabaseAdmin
       .from('search_configs')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
