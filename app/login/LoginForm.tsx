@@ -9,7 +9,9 @@ export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedRedirect = searchParams.get('redirect');
-  const redirectTo = requestedRedirect?.startsWith('/dashboard') ? requestedRedirect : '/dashboard';
+  const redirectTo = requestedRedirect?.startsWith('/dashboard') || requestedRedirect?.startsWith('/oauth/consent?authorization_id=')
+    ? requestedRedirect
+    : '/dashboard';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

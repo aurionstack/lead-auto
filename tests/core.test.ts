@@ -7,6 +7,11 @@ import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedSta
 import { automationTools, getAutomationTool } from '../lib/tools/registry';
 import { DEFAULT_YOUTUBE_CAMPAIGN } from '../lib/tools/youtube-outreach/types';
 import { mcpBusinessActions } from '../lib/mcp/action-registry';
+import { createMcpUnauthorizedResponse, getMcpResourceUrl, validateMcpClaims } from '../lib/mcp/auth';
+import { createAurionStackMcpServer } from '../lib/mcp/server';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -89,5 +94,65 @@ describe('automation hub architecture', () => {
     const outreachActions = mcpBusinessActions.filter((action) => action.risk === 'outreach');
     expect(outreachActions.length).toBeGreaterThan(0);
     expect(outreachActions.every((action) => !action.enabled && action.requiresExplicitAuthorization)).toBe(true);
+  });
+
+  it('exposes only the Phase 2 read-only MCP actions', () => {
+    const enabled = mcpBusinessActions.filter((action) => action.enabled);
+    expect(enabled.map((action) => action.name)).toEqual([
+      'lead_recovery.get_status',
+      'lead_recovery.list_prospects',
+      'lead_recovery.get_replies',
+      'lead_recovery.get_stats',
+      'youtube.get_status',
+      'youtube.list_creators',
+      'youtube.get_replies',
+      'youtube.get_stats',
+    ]);
+    expect(enabled.every((action) => action.risk === 'read' && !action.requiresExplicitAuthorization)).toBe(true);
+  });
+});
+
+describe('MCP authorization metadata', () => {
+  it('fails with an OAuth discovery challenge and uses the canonical MCP resource URL', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://automation.example.com/');
+    const request = new Request('https://automation.example.com/mcp');
+    const response = createMcpUnauthorizedResponse(request);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('www-authenticate')).toContain('oauth-protected-resource');
+    expect(getMcpResourceUrl(request)).toBe('https://automation.example.com/mcp');
+    await expect(response.json()).resolves.toMatchObject({ error: 'unauthorized' });
+  });
+
+  it('registers the eight read-only Phase 2 tools over MCP', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = createAurionStackMcpServer({
+      supabase: {} as SupabaseClient,
+      organizationId: 'organization-1',
+      userId: 'user-1',
+      clientId: 'client-1',
+    });
+    const client = new Client({ name: 'test-client', version: '1.0.0' });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const { tools } = await client.listTools();
+    expect(tools.map((tool) => tool.name)).toEqual(mcpBusinessActions.filter((action) => action.enabled).map((action) => action.name));
+    expect(tools.every((tool) => tool.annotations?.readOnlyHint === true && tool.annotations?.destructiveHint === false)).toBe(true);
+    expect(tools.every((tool) => Array.isArray(tool._meta?.securitySchemes))).toBe(true);
+    await Promise.all([client.close(), server.close()]);
+  });
+
+  it('accepts only Supabase OAuth access tokens for the MCP endpoint', () => {
+    const claims = {
+      sub: 'user-1',
+      iss: 'https://project.supabase.co/auth/v1',
+      aud: 'authenticated',
+      client_id: 'oauth-client-1',
+    };
+    expect(validateMcpClaims(claims, 'https://project.supabase.co')).toEqual({
+      userId: 'user-1',
+      clientId: 'oauth-client-1',
+    });
+    expect(() => validateMcpClaims({ ...claims, client_id: undefined }, 'https://project.supabase.co')).toThrow(/MCP OAuth/);
+    expect(() => validateMcpClaims({ ...claims, aud: 'anon' }, 'https://project.supabase.co')).toThrow(/MCP OAuth/);
+    expect(() => validateMcpClaims({ ...claims, iss: 'https://attacker.example/auth/v1' }, 'https://project.supabase.co')).toThrow(/MCP OAuth/);
   });
 });

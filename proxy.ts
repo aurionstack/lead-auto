@@ -31,13 +31,11 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (
-    !user &&
-    request.nextUrl.pathname.startsWith('/dashboard')
-  ) {
+  if (!user && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname === '/oauth/consent')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('redirect', request.nextUrl.pathname)
+    url.search = ''
+    url.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(url)
   }
 
@@ -47,7 +45,11 @@ export async function proxy(request: NextRequest) {
     (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/')
   ) {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    const requestedRedirect = request.nextUrl.searchParams.get('redirect')
+    const safeRedirect = requestedRedirect?.startsWith('/oauth/consent?authorization_id=') ? requestedRedirect : '/dashboard'
+    const destination = new URL(safeRedirect, request.url)
+    url.pathname = destination.pathname
+    url.search = destination.search
     return NextResponse.redirect(url)
   }
 

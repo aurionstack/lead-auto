@@ -5,7 +5,7 @@ import { supabaseAdmin } from '../supabase';
 import { sendOutreachEmail } from './provider';
 import { isSuppressed } from './suppression';
 import { buildOutreachHtml, buildOutreachText } from './templates';
-import { ACTIVE_CAMPAIGN, campaignSequenceId } from '../campaign';
+import { ACTIVE_CAMPAIGN, campaignSequenceId } from '../tools/lead-recovery/campaign';
 
 export interface QueueItem {
   leadId: string;
