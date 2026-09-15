@@ -1,58 +1,109 @@
-# Lead Automation System
+# AurionStack Automation Hub
 
-An internal Next.js application that discovers businesses with Apify, enriches and scores them with Hunter and Gemini, routes qualified leads by channel, sends rate-limited SMTP outreach, and tracks replies and suppressions in Supabase.
+AurionStack is a Next.js and Supabase workspace for independent operational automation tools. Authentication, tenancy, provider settings, and safety infrastructure are shared; business data and workflows remain owned by each tool.
 
-The active go-to-market experiment is **AurionStack Lead Recovery**: a United States home-services pilot focused on HVAC, plumbing, roofing, and garage-door companies with roughly 5–50 employees. Email is the primary outreach channel; SMS or WhatsApp is optional.
+## Current modules
 
-## Production flow
+### Lead Recovery
 
-1. `/api/cron/auto-scrape` runs daily and rotates through active search configurations.
-2. Apify calls the authenticated `/api/webhooks/apify` endpoint and the dataset is upserted into `leads`.
-3. `/api/cron/process-leads` atomically claims unprocessed leads, discovers email addresses, generates pitches, and queues qualified email leads.
-4. `/api/cron/process-outreach` atomically claims due messages, enforces the UTC daily limit, rechecks suppressions, and sends through SMTP.
-5. Provider webhooks record delivery activity. Bounces, complaints, and unsubscribes are added to the suppression list.
+The existing production workflow for US home-service companies. It discovers companies with Apify, enriches and qualifies them with Hunter and Gemini, prepares personalized outreach, sends through the guarded SMTP queue, and tracks replies and suppressions.
 
-WhatsApp leads remain in the dashboard for manual outreach. Instantly is an optional manual action and is not part of the scheduled SMTP flow.
+Its existing `leads`, `scrape_jobs`, `search_configs`, `outreach_queue`, `email_events`, and `email_suppressions` tables remain unchanged. The module boundary is introduced incrementally under `lib/tools/lead-recovery` to avoid a risky database rename.
 
-## Setup
+Canonical UI: `/dashboard/lead-recovery`
 
-1. Use Node.js 22 (`nvm use 22.20.0` on nvm-windows, or the version in `.nvmrc` on compatible managers).
-2. Copy `.env.local.example` to `.env.local` and fill in every integration you use.
-3. Apply every SQL migration in `supabase/migrations`, including `009_add_outreach_postal_address.sql`.
-4. Configure the application environment variables in Vercel.
-5. Add `APP_URL` and `CRON_SECRET` as GitHub Actions repository secrets. `APP_URL` must be the production origin, such as `https://leads.example.com`, and `CRON_SECRET` must exactly match the value configured in Vercel.
-6. Deploy the application and enable GitHub Actions. GitHub Actions is the only production scheduler; the project deliberately has no Vercel Cron configuration.
+### YouTube Creator Outreach
 
-Important deployment secrets are `SESSION_SECRET`, `CRON_SECRET`, `UNSUBSCRIBE_SECRET`, and each webhook secret. If the dedicated session, unsubscribe, or Apify webhook secret is absent, the application temporarily falls back to `CRON_SECRET` for backward compatibility. Dedicated secrets are strongly recommended.
+A separate creator-acquisition module for established English-speaking channels that publish active long-form content and underuse Shorts. It has dedicated creator, campaign, queue, event, and note models. It does not use the Lead Recovery `leads` table.
 
-## Schedule
+This release provides the module dashboard, creator pipeline, paused campaign configuration, and database foundation. It does **not** implement creator discovery, vidIQ access, scheduled automation, or live email sending.
 
-| Task | Schedule (UTC) | Purpose |
-| --- | --- | --- |
-| Lead scoring | Every 10 minutes | Enrich and qualify atomically claimed leads |
-| Instantly push | Every 10 minutes, after lead scoring | Push newly qualified Instantly-channel leads |
-| SMTP delivery | Every 5 minutes | Send due queue items, default batch 5 |
-| Lead scraping | Daily at 00:00 | Scrape the least recently used search target |
+Canonical UI: `/dashboard/youtube-outreach`
 
-`OUTREACH_DAILY_LIMIT` defaults to 30 and `OUTREACH_BATCH_SIZE` defaults to 5. Queue failures retry three times with exponential backoff. Stale locks are recovered, while ambiguous SMTP deliveries are quarantined to avoid accidental duplicate sends.
+## Route structure
 
-Scheduled workflows run from the repository's default branch. Keep the workflow enabled and monitor failed runs in the GitHub Actions tab. Do not recreate the same schedules in Vercel, because two schedulers would compete for the same work.
+```text
+/dashboard                              Automation Hub
+/dashboard/lead-recovery                Lead Recovery overview
+/dashboard/lead-recovery/prospects      Company prospect review
+/dashboard/lead-recovery/campaigns      Discovery runs
+/dashboard/lead-recovery/inbox          Sent outreach
+/dashboard/lead-recovery/job/[id]       Discovery-run prospects
+/dashboard/lead-recovery/settings       Search targets
+/dashboard/youtube-outreach             Creator pipeline overview
+/dashboard/youtube-outreach/creators    Creator records
+/dashboard/youtube-outreach/campaigns   Creator campaigns
+/dashboard/youtube-outreach/replies     Creator replies
+/dashboard/youtube-outreach/automation  Paused daily configuration
+/dashboard/youtube-outreach/settings    Tool policy and dependencies
+/dashboard/integrations                 Shared provider credentials
+```
 
-## Commands
+Compatibility redirects remain for `/dashboard/job/[id]`, `/dashboard/settings`, and `/dashboard/api-keys`. Production cron, webhook, email, and unsubscribe endpoints are unchanged. Namespaced API endpoints are introduced incrementally under `/api/tools/<tool-id>`.
+
+## Directory boundaries
+
+```text
+app/dashboard/                 Protected platform and tool routes
+app/api/tools/                 New tool-namespaced API surface
+components/hub/                Automation Hub UI
+components/shared/             Reusable platform/tool shell
+components/tools/              Tool-specific UI
+lib/tools/registry.ts          Static typed automation registry
+lib/tools/lead-recovery/       Lead Recovery service and policy boundary
+lib/tools/youtube-outreach/    YouTube creator service, types, and defaults
+lib/mcp/action-registry.ts     Disabled-by-default MCP action catalog
+lib/email/                     Shared guarded delivery infrastructure
+supabase/migrations/           Additive schema changes
+```
+
+## Adding another automation tool
+
+1. Add a typed entry to `lib/tools/registry.ts`.
+2. Create tool-owned routes under `app/dashboard/<tool-id>`.
+3. Add a tool service and types under `lib/tools/<tool-id>`.
+4. Use dedicated tables for tool-specific data. Reference `organization_id` and enable tenant RLS.
+5. Reuse shared auth, integrations, rate limits, and UI primitives rather than duplicating them.
+6. Add only business-domain MCP actions and leave high-risk actions disabled until server-side authorization and safety checks exist.
+7. Add tests and run the full validation suite.
+
+## Database setup
+
+Apply migrations in numerical order. They are never applied automatically by the application.
+
+- `009_add_outreach_postal_address.sql` adds the CAN-SPAM sender address required by the shared email provider.
+- `010_youtube_outreach_foundation.sql` adds `youtube_creators`, `youtube_campaigns`, `youtube_outreach_queue`, `youtube_outreach_events`, and `youtube_creator_notes` with tenant RLS and paused defaults.
+
+Migration 010 inserts no records and activates no campaign. The YouTube UI degrades to safe preview defaults until it is applied.
+
+## Shared infrastructure
+
+- Supabase Auth and the root dashboard layout protect every `/dashboard/*` route.
+- Supabase organization membership scopes browser reads and writes through RLS.
+- Provider credentials are organization-owned and configured at `/dashboard/integrations`.
+- Lead Recovery keeps its suppression, unsubscribe, bounce, reply-stop, daily-limit, sender, postal-address, and duplicate protections.
+- YouTube creator emails require recorded public provenance, and its future queue defaults to `paused`.
+
+## MCP direction
+
+`lib/mcp/action-registry.ts` defines a typed catalog of tool-specific actions such as `lead_recovery.get_status` and `youtube.list_creators`. It intentionally exposes no generic `send_email` or database operation. All entries remain disabled until they have authenticated, tenant-scoped service implementations; outreach actions additionally require explicit authorization.
+
+## Local setup
+
+1. Use Node.js 22.
+2. Copy `.env.local.example` to `.env.local` and configure only the providers you use.
+3. Apply the required Supabase migrations manually.
+4. Run `npm run dev`.
+
+Production scheduling remains in GitHub Actions. Do not duplicate those schedules in Vercel.
+
+## Validation
 
 ```bash
-npm install
-npm run dev
 npm run lint
-npx tsc --noEmit
+npm run typecheck
+npm test
 npm run build
 ```
 
-## Security model
-
-- Dashboard pages and mutation APIs require a signed HTTP-only JWT session.
-- Cron and webhook endpoints fail closed when their secrets are absent or invalid.
-- Supabase access is server-side through the service-role key; RLS denies browser roles.
-- Queue claims use database row locking and one active message per lead.
-- Email content is HTML-escaped and every message contains a signed unsubscribe link.
-- Suppression checks fail closed if the suppression database cannot be queried.
+Never use development or refactor work to activate a campaign, run Apify/Hunter, or send real outreach.
