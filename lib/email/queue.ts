@@ -106,7 +106,13 @@ export async function processQueue(batchSize = 10) {
 
       // Just-in-time suppression check
       if (await isSuppressed(targetEmail)) {
-        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Email became suppressed before sending', false);
+        await markQueueFailed(
+          item.id,
+          item.lead_id,
+          item.attempt_count,
+          'Email became suppressed before sending',
+          { retry: false, terminalLeadStatus: 'suppressed' },
+        );
         continue;
       }
       
@@ -130,8 +136,26 @@ export async function processQueue(batchSize = 10) {
         .eq('organization_id', item.organization_id)
         .single();
 
-      if (!orgSettings || !orgSettings.smtp_host || !orgSettings.smtp_user) {
-        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Organization SMTP credentials not configured', false);
+      if (
+        !orgSettings ||
+        !orgSettings.smtp_host ||
+        !orgSettings.smtp_user ||
+        !orgSettings.smtp_password ||
+        !orgSettings.postal_address?.trim()
+      ) {
+        const missing = [
+          !orgSettings?.smtp_host ? 'SMTP host' : null,
+          !orgSettings?.smtp_user ? 'SMTP user' : null,
+          !orgSettings?.smtp_password ? 'SMTP password' : null,
+          !orgSettings?.postal_address?.trim() ? 'physical postal address' : null,
+        ].filter(Boolean).join(', ');
+        await markQueueFailed(
+          item.id,
+          item.lead_id,
+          item.attempt_count,
+          `Organization sender configuration incomplete: ${missing}`,
+          { retry: false },
+        );
         continue;
       }
 
@@ -235,7 +259,14 @@ async function skipQueueItem(queueId: string, leadId: string, reason: string) {
   await logEvent(leadId, queueId, 'skipped', null, { reason });
 }
 
-async function markQueueFailed(queueId: string, leadId: string, attemptCount: number, errorMessage: string, retry = true) {
+async function markQueueFailed(
+  queueId: string,
+  leadId: string,
+  attemptCount: number,
+  errorMessage: string,
+  options: { retry?: boolean; terminalLeadStatus?: 'rejected' | 'suppressed' } = {},
+) {
+  const retry = options.retry ?? true;
   const shouldRetry = retry && attemptCount < 3;
   const retryDelayMinutes = Math.min(60, 5 * Math.pow(2, Math.max(0, attemptCount - 1)));
   await supabaseAdmin
@@ -254,10 +285,10 @@ async function markQueueFailed(queueId: string, leadId: string, attemptCount: nu
     
   await logEvent(leadId, queueId, shouldRetry ? 'deferred' : 'failed', null, { error: errorMessage, attemptCount });
 
-  if (!shouldRetry) {
+  if (!shouldRetry && options.terminalLeadStatus) {
     await supabaseAdmin
       .from('leads')
-      .update({ status: retry ? 'rejected' : 'suppressed' })
+      .update({ status: options.terminalLeadStatus })
       .eq('id', leadId)
       .eq('status', 'approved');
   }
