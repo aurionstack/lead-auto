@@ -5,6 +5,8 @@ import type { SearchConfig } from '@/lib/types';
 import { Settings, Plus, Loader2, MapPin, Building2, Trash2, Mail, MessageCircle, Clock, LayoutDashboard, LogOut, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
+import { ACTIVE_CAMPAIGN } from '@/lib/campaign';
 
 interface Props {
   configs: SearchConfig[];
@@ -13,14 +15,14 @@ interface Props {
 export default function SearchConfigsClient({ configs }: Props) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
-  const [query, setQuery] = useState('');
-  const [location, setLocation] = useState('');
+  const [query, setQuery] = useState<string>(ACTIVE_CAMPAIGN.targets[0].category);
+  const [location, setLocation] = useState<string>(ACTIVE_CAMPAIGN.targets[0].location);
   const [channel, setChannel] = useState('email');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/login', { method: 'DELETE' });
+    await createClient().auth.signOut();
     router.replace('/login');
     router.refresh();
   };
@@ -37,7 +39,8 @@ export default function SearchConfigsClient({ configs }: Props) {
       if (res.ok) {
         window.location.reload();
       } else {
-        alert('Failed to add config');
+        const data = await res.json();
+        alert(data.error || 'Failed to add target');
       }
     } catch {
       alert('Error adding config');
@@ -108,7 +111,7 @@ export default function SearchConfigsClient({ configs }: Props) {
             <div>
               <h1 className="text-xl font-semibold mb-1">Autonomous Search Targets</h1>
               <p className="text-sm text-slate-500">
-                The daily Cron job will pick the oldest target in this list and automatically scrape it.
+                US home-service targets for the {ACTIVE_CAMPAIGN.name} pilot. Email is the primary channel.
               </p>
             </div>
             <button
@@ -223,7 +226,7 @@ export default function SearchConfigsClient({ configs }: Props) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="e.g. real estate developer"
+                  placeholder="e.g. HVAC contractors"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                 />
               </div>
@@ -237,7 +240,7 @@ export default function SearchConfigsClient({ configs }: Props) {
                   type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Miami, Florida"
+                  placeholder="e.g. Dallas, Texas"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                 />
               </div>
@@ -251,9 +254,9 @@ export default function SearchConfigsClient({ configs }: Props) {
                   onChange={(e) => setChannel(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                 >
-                  <option value="email">Email Campaign (SaaS/Internal Tools)</option>
-                  <option value="whatsapp">WhatsApp Pipeline (Local Businesses)</option>
-                  <option value="instantly">Instantly Campaign</option>
+                  <option value="email">Email (primary)</option>
+                  <option value="instantly">Instantly email campaign</option>
+                  <option value="whatsapp">SMS / WhatsApp (optional)</option>
                 </select>
               </div>
             </div>

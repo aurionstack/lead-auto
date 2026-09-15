@@ -4,6 +4,8 @@
 import { supabaseAdmin } from '../supabase';
 import { sendOutreachEmail } from './provider';
 import { isSuppressed } from './suppression';
+import { buildOutreachHtml, buildOutreachText } from './templates';
+import { ACTIVE_CAMPAIGN, campaignSequenceId } from '../campaign';
 
 export interface QueueItem {
   leadId: string;
@@ -13,6 +15,7 @@ export interface QueueItem {
   targetEmail: string; // The email we resolved
   unsubscribeUrl: string;
   scheduledFor?: Date;
+  campaignId?: string;
 }
 
 /**
@@ -38,6 +41,7 @@ export async function addToQueue(item: QueueItem, organizationId: string) {
         status: 'pending',
         scheduled_for: item.scheduledFor ? item.scheduledFor.toISOString() : new Date().toISOString(),
         organization_id: organizationId,
+        campaign_id: item.campaignId ?? null,
       },
     ])
     .select()
@@ -89,6 +93,17 @@ export async function processQueue(batchSize = 10) {
         continue;
       }
 
+      const { data: lead } = await supabaseAdmin
+        .from('leads')
+        .select('status, business_name')
+        .eq('id', item.lead_id)
+        .maybeSingle();
+
+      if (!lead || ['replied', 'unsubscribed', 'bounced', 'suppressed', 'rejected'].includes(lead.status)) {
+        await skipQueueItem(item.id, item.lead_id, `Lead status is ${lead?.status ?? 'missing'}; outreach stopped`);
+        continue;
+      }
+
       // Just-in-time suppression check
       if (await isSuppressed(targetEmail)) {
         await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Email became suppressed before sending', false);
@@ -111,7 +126,7 @@ export async function processQueue(batchSize = 10) {
       // Fetch tenant SMTP config
       const { data: orgSettings } = await supabaseAdmin
         .from('organization_settings')
-        .select('smtp_host, smtp_port, smtp_user, smtp_password, from_email, from_name')
+        .select('smtp_host, smtp_port, smtp_user, smtp_password, from_email, from_name, postal_address')
         .eq('organization_id', item.organization_id)
         .single();
 
@@ -127,6 +142,7 @@ export async function processQueue(batchSize = 10) {
         pass: orgSettings.smtp_password,
         fromEmail: orgSettings.from_email || orgSettings.smtp_user,
         fromName: orgSettings.from_name,
+        postalAddress: orgSettings.postal_address,
       };
 
       // Send Email using the snapshot!
@@ -157,7 +173,16 @@ export async function processQueue(batchSize = 10) {
         await supabaseAdmin
           .from('leads')
           .update({ status: 'contacted' })
-          .eq('id', item.lead_id);
+          .eq('id', item.lead_id)
+          .in('status', ['approved', 'contacted']);
+
+        try {
+          await scheduleNextCampaignFollowUp(item, lead.business_name || 'your team');
+        } catch (followUpError: unknown) {
+          const message = followUpError instanceof Error ? followUpError.message : 'Unknown follow-up scheduling error';
+          console.error(`[outreach] Email ${item.id} sent, but its next follow-up could not be scheduled:`, message);
+          await logEvent(item.lead_id, item.id, 'follow_up_scheduling_failed', result.messageId, { error: message });
+        }
 
       } else {
         await markQueueFailed(item.id, item.lead_id, item.attempt_count, result.error?.toString() || 'Unknown provider error');
@@ -169,6 +194,45 @@ export async function processQueue(batchSize = 10) {
   }
 
   return { processed: lockedItems.length };
+}
+
+async function scheduleNextCampaignFollowUp(
+  item: { campaign_id?: string | null; id: string; lead_id: string; subject: string; target_email: string; unsubscribe_url?: string | null; organization_id: string },
+  businessName: string,
+) {
+  const firstId = campaignSequenceId('initial');
+  const firstFollowUpId = campaignSequenceId(1);
+  const currentStep = item.campaign_id === firstId ? 0 : item.campaign_id === firstFollowUpId ? 1 : null;
+  if (currentStep === null) return;
+
+  const next = ACTIVE_CAMPAIGN.followUps[currentStep];
+  if (!next) return;
+
+  const body = next.step === 1
+    ? `Hi — just following up on my note about recovering enquiries that do not get booked. If missed calls or slow form responses are a problem at ${businessName}, I can show you a simple SMS and email response flow. Would a short walkthrough be useful?`
+    : `Last note from me — AurionStack Lead Recovery helps turn unbooked inbound enquiries into scheduled conversations without replacing your existing tools. Should I send a one-page outline, or close the loop?`;
+  const unsubscribeLink = item.unsubscribe_url || '';
+  const scheduledFor = new Date(Date.now() + next.delayDays * 24 * 60 * 60 * 1000);
+
+  await addToQueue({
+    leadId: item.lead_id,
+    subject: `Re: ${item.subject.replace(/^Re:\s*/i, '')}`,
+    bodyText: buildOutreachText({ businessName, body, unsubscribeLink }),
+    bodyHtml: buildOutreachHtml({ businessName, body, unsubscribeLink }),
+    targetEmail: item.target_email,
+    unsubscribeUrl: unsubscribeLink,
+    scheduledFor,
+    campaignId: campaignSequenceId(next.step),
+  }, item.organization_id);
+}
+
+async function skipQueueItem(queueId: string, leadId: string, reason: string) {
+  await supabaseAdmin
+    .from('outreach_queue')
+    .update({ status: 'failed', error_message: reason, locked_at: null, locked_by: null, updated_at: new Date().toISOString() })
+    .eq('id', queueId)
+    .eq('status', 'locked');
+  await logEvent(leadId, queueId, 'skipped', null, { reason });
 }
 
 async function markQueueFailed(queueId: string, leadId: string, attemptCount: number, errorMessage: string, retry = true) {
@@ -185,7 +249,8 @@ async function markQueueFailed(queueId: string, leadId: string, attemptCount: nu
       provider_message_id: shouldRetry ? null : undefined,
       updated_at: new Date().toISOString() 
     })
-    .eq('id', queueId);
+    .eq('id', queueId)
+    .eq('status', 'locked');
     
   await logEvent(leadId, queueId, shouldRetry ? 'deferred' : 'failed', null, { error: errorMessage, attemptCount });
 

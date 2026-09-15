@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hasDashboardSession } from '@/lib/auth';
+import { validateCampaignTarget } from '@/lib/campaign';
 
 const APIFY_ACTOR_ID = 'compass~crawler-google-places';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
@@ -56,6 +57,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Build search queries — e.g. "restaurants in Mumbai"
   const cleanLocation = location.trim();
   const cleanCategory = category.trim();
+  const campaignError = validateCampaignTarget(cleanCategory, cleanLocation);
+  if (campaignError) {
+    return NextResponse.json({ error: campaignError }, { status: 400 });
+  }
   const searchQuery = `${cleanCategory} in ${cleanLocation}`;
 
   // 1. Create a new scrape job in the database

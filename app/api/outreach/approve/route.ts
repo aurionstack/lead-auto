@@ -5,6 +5,7 @@ import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
 import { isSuppressed } from '@/lib/email/suppression';
 import { hasDashboardSession } from '@/lib/auth';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
+import { campaignSequenceId } from '@/lib/campaign';
 
 export async function POST(request: Request) {
   try {
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     
     const html = buildOutreachHtml({ businessName, body: draft, unsubscribeLink });
     const text = buildOutreachText({ businessName, body: draft, unsubscribeLink });
-    const subject = `Partnership Inquiry - ${businessName}`;
+    const subject = `A missed-enquiry idea for ${businessName}`;
 
     // 4. Update the lead status to 'approved'
     const { error: updateError } = await supabaseAdmin
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
         bodyText: text,
         targetEmail: targetEmail,
         unsubscribeUrl: buildOneClickUnsubscribeUrl(leadId),
+        campaignId: campaignSequenceId('initial'),
       }, lead.organization_id);
     } catch (queueError) {
       await supabaseAdmin.from('leads').update({ status: 'new' }).eq('id', leadId).eq('status', 'approved');

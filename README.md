@@ -2,6 +2,8 @@
 
 An internal Next.js application that discovers businesses with Apify, enriches and scores them with Hunter and Gemini, routes qualified leads by channel, sends rate-limited SMTP outreach, and tracks replies and suppressions in Supabase.
 
+The active go-to-market experiment is **AurionStack Lead Recovery**: a United States home-services pilot focused on HVAC, plumbing, roofing, and garage-door companies with roughly 5–50 employees. Email is the primary outreach channel; SMS or WhatsApp is optional.
+
 ## Production flow
 
 1. `/api/cron/auto-scrape` runs daily and rotates through active search configurations.
@@ -16,7 +18,7 @@ WhatsApp leads remain in the dashboard for manual outreach. Instantly is an opti
 
 1. Use Node.js 22 (`nvm use 22.20.0` on nvm-windows, or the version in `.nvmrc` on compatible managers).
 2. Copy `.env.local.example` to `.env.local` and fill in every integration you use.
-3. Apply every SQL migration in `supabase/migrations`, including `008_multi_tenant_schema.sql`.
+3. Apply every SQL migration in `supabase/migrations`, including `009_add_outreach_postal_address.sql`.
 4. Configure the application environment variables in Vercel.
 5. Add `APP_URL` and `CRON_SECRET` as GitHub Actions repository secrets. `APP_URL` must be the production origin, such as `https://leads.example.com`, and `CRON_SECRET` must exactly match the value configured in Vercel.
 6. Deploy the application and enable GitHub Actions. GitHub Actions is the only production scheduler; the project deliberately has no Vercel Cron configuration.

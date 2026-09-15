@@ -31,6 +31,7 @@ export default function ApiKeysClient({ initialSettings }: { initialSettings: Or
           smtp_password: settings.smtp_password,
           from_email: settings.from_email,
           from_name: settings.from_name,
+          postal_address: settings.postal_address,
         });
 
       if (error) throw error;
@@ -178,6 +179,18 @@ export default function ApiKeysClient({ initialSettings }: { initialSettings: Or
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500"
                   placeholder="john@example.com"
                 />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm text-slate-400 mb-1">Physical Postal Address</label>
+                <input
+                  type="text"
+                  name="postal_address"
+                  value={settings.postal_address || ''}
+                  onChange={handleChange}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                  placeholder="Required for compliant commercial email"
+                />
+                <p className="mt-1 text-xs text-slate-600">Included in every email footer. Sending is blocked when this is empty.</p>
               </div>
             </div>
           </div>

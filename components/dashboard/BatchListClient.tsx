@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ScrapeJob } from '@/lib/types';
 import { Search, Loader2, MapPin, Building2, Hash, X, ChevronRight, Clock, Users, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { ACTIVE_CAMPAIGN } from '@/lib/campaign';
 
 interface BatchListClientProps {
   jobs: ScrapeJob[];
@@ -11,8 +12,8 @@ interface BatchListClientProps {
 
 export default function BatchListClient({ jobs }: BatchListClientProps) {
   const [showScrapeModal, setShowScrapeModal] = useState(false);
-  const [scrapeLocation, setScrapeLocation] = useState('');
-  const [scrapeCategory, setScrapeCategory] = useState('');
+  const [scrapeLocation, setScrapeLocation] = useState<string>(ACTIVE_CAMPAIGN.targets[0].location);
+  const [scrapeCategory, setScrapeCategory] = useState<string>(ACTIVE_CAMPAIGN.targets[0].category);
   const [scrapeMaxResults, setScrapeMaxResults] = useState(50);
   const [scrapeChannel, setScrapeChannel] = useState<'email' | 'whatsapp' | 'instantly'>('email');
   const [isScraping, setIsScraping] = useState(false);
@@ -42,8 +43,8 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
       if (!response.ok) throw new Error(data.error || 'Scrape failed');
       showFeedback('success', data.message);
       setShowScrapeModal(false);
-      setScrapeLocation('');
-      setScrapeCategory('');
+      setScrapeLocation(ACTIVE_CAMPAIGN.targets[0].location);
+      setScrapeCategory(ACTIVE_CAMPAIGN.targets[0].category);
       setScrapeChannel('email');
       setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
@@ -177,7 +178,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-white">Find New Leads</h2>
-                  <p className="text-xs text-slate-500">Scrape Google Maps via Apify</p>
+                  <p className="text-xs text-slate-500">US home-services pilot · 50 prospects per search</p>
                 </div>
               </div>
               <button
@@ -196,8 +197,8 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
                   onChange={(e) => setScrapeChannel(e.target.value as 'email' | 'whatsapp' | 'instantly')}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/30 transition-all"
                 >
-                  <option value="email">Automatic SMTP email</option>
-                  <option value="whatsapp">Manual WhatsApp</option>
+                  <option value="email">Email (primary)</option>
+                  <option value="whatsapp">SMS / WhatsApp (optional)</option>
                   <option value="instantly">Instantly campaign</option>
                 </select>
               </div>
@@ -211,7 +212,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
                   type="text"
                   value={scrapeLocation}
                   onChange={(e) => setScrapeLocation(e.target.value)}
-                  placeholder="e.g. Mumbai, Delhi, Bangalore"
+                  placeholder="e.g. Dallas, Texas"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/30 transition-all"
                 />
               </div>
@@ -225,7 +226,7 @@ export default function BatchListClient({ jobs }: BatchListClientProps) {
                   type="text"
                   value={scrapeCategory}
                   onChange={(e) => setScrapeCategory(e.target.value)}
-                  placeholder="e.g. restaurants, plumbers, gyms"
+                  placeholder="e.g. HVAC contractors"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/30 transition-all"
                 />
               </div>

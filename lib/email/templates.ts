@@ -58,3 +58,18 @@ This email was sent to ${data.businessName}.
 To unsubscribe, visit: ${data.unsubscribeLink}
   `.trim();
 }
+
+export function appendComplianceFooter(
+  html: string,
+  text: string | undefined,
+  senderName: string,
+  postalAddress: string,
+): { html: string; text: string } {
+  const safeSender = escapeHtml(senderName);
+  const safeAddress = escapeHtml(postalAddress);
+  const footer = `<p style="margin-top:16px">${safeSender}<br/>${safeAddress}</p>`;
+  return {
+    html: html.includes('</body>') ? html.replace('</body>', `${footer}</body>`) : `${html}${footer}`,
+    text: `${text || ''}\n\n${senderName}\n${postalAddress}`.trim(),
+  };
+}

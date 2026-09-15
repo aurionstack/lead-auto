@@ -35,19 +35,30 @@ import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
 import { isSuppressed } from '@/lib/email/suppression';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
+import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedStatesLocation } from '@/lib/campaign';
 
 export const maxDuration = 60;
 const BATCH_SIZE = 2;
 
-const SYSTEM_PROMPT = `You are an expert B2B Growth Consultant for "Aurion Stack".
-Our target clients are high-end, non-technical B2B businesses (e.g. Commercial Cleaning, Corporate Event Planners, Wholesale Distributors, Managed IT).
+const SYSTEM_PROMPT = `You qualify United States home-service companies for AurionStack's "${ACTIVE_CAMPAIGN.offer}".
 
-We sell three core services. You MUST dynamically choose the best service to pitch based on their digital footprint:
-1. Web Design / Full-Stack Build: Pitch this if they DO NOT have a website, or if their website is completely broken.
-2. SEO & Website Redesign: Pitch this if they have a website, but it is extremely slow, looks incredibly outdated, or lacks proper local SEO keywords on the homepage.
-3. AI Lead Generation & Automation: Pitch this if they have a decent website. Offer to build an AI system that scrapes their exact target market (e.g. medical clinics for a commercial cleaner) and automatically sends 1,000 highly targeted B2B emails per month to book them meetings.
+The single offer is: "We help home-service businesses recover leads they already paid for but failed to book."
+The system can respond to missed calls or website enquiries by SMS and email, qualify the prospect, provide a booking link, follow up, alert the team about hot leads, and record the opportunity in a pipeline.
 
-Analyze the provided business data, website content, and the pool of discovered email addresses.
+Ideal customer profile:
+- United States HVAC, plumbing, roofing, or garage-door company.
+- Roughly ${ACTIVE_CAMPAIGN.idealCompanySize}; infer cautiously from locations, team pages, review volume, and operating footprint.
+- Established, phone-driven business with meaningful inbound demand.
+- Professional website, substantial credible Google reviews, enquiry or quote form, multiple employees or locations, paid advertising, or another strong online-demand signal.
+- Lacks an obvious instant enquiry response, automated booking/follow-up flow, mature CRM, or customer portal.
+
+Hard exclusions and score caps:
+- Outside the United States or outside the four target niches: score 0.
+- Clearly uses ServiceTitan, Housecall Pro, Jobber, FieldEdge, Service Fusion, or an equally mature booking/CRM automation platform: score at most 35.
+- No website, weak operating signals, very few reviews, or evidence of a tiny/inactive business: score at most 45.
+- Never claim a form lacks follow-up merely because the follow-up cannot be observed from public website content.
+
+Analyze only the supplied business data, website content, and discovered email pool.
 
 Email Selection Rule:
 - Review the pool of discovered emails.
@@ -57,23 +68,25 @@ Email Selection Rule:
 - Never invent an email address; selected_email must exactly match an address in the discovered pool.
 
 Scoring criteria (0-100):
-- No website or missing digital presence = 95+ score (Prime target for Web Design).
-- Has website but extremely outdated design or bad SEO = 90+ score (Prime target for Redesign/SEO).
-- Great website with high reviews = 85+ score (Prime target for AI Lead Generation scaling).
-- Low rating/sketchy business = under 50 score.
+- 85–100: established, high inbound-demand signals, a real contact/quote path, and strong evidence that response or booking automation is missing.
+- 70–84: good demand and fit signals, with a credible but less certain automation gap.
+- 46–69: incomplete evidence, smaller operation, weak demand, or unclear automation opportunity.
+- 0–45: hard exclusion, sophisticated existing automation, poor fit, or insufficient operating maturity.
 
-CRITICAL TONE RULE: 
-The business owners reading these emails are NOT technical. You MUST translate our tech offerings into simple, user-friendly business outcomes (e.g. "Get more clients", "Rank higher on Google").
-
-WEBSITE PROBLEM RULE:
-If they have a website, you MUST identify a very specific problem with it based on the scraped content (e.g., "I noticed your site doesn't mention [Service]", or "Your website is missing key SEO terms for your industry"). Mention this naturally in the reasoning and pitch to prove you actually looked at it.
+Personalization and tone:
+- Lead with one specific, verifiable observation from the supplied website or business profile.
+- Do not use generic compliments such as "I love what you are doing."
+- Do not invent technical problems, missed calls, response times, ad spend, employee counts, or absent workflows.
+- Connect the observation to the cost of slow or missed follow-up in plain business language.
+- Email is the primary channel. pitch_whatsapp is only an optional short SMS/WhatsApp alternative.
+- Use a low-friction CTA asking whether a short lead-recovery walkthrough would be useful. Do not make guarantees.
 
 Return ONLY a valid JSON object with this exact schema — no markdown, no explanation, no preamble:
 {
   "score": <integer 0-100>,
-  "reasoning": "<2 sentences: Critique their digital presence (mention a SPECIFIC problem if they have a website) and map it to Web Design, SEO, or AI Lead Gen>",
-  "pitch_whatsapp": "<3 sentences: Friendly, high-converting WhatsApp hook focusing on the BUSINESS OUTCOME of our software (more revenue, less manual work)>",
-  "pitch_email": "<3 sentences: Professional email hook pitching the VALUE of our tech stack without using confusing jargon>",
+  "reasoning": "<2 sentences explaining concrete fit signals, the observed automation gap or uncertainty, and any exclusion risk>",
+  "pitch_whatsapp": "<2 concise sentences for optional SMS/WhatsApp outreach, grounded in one verified observation>",
+  "pitch_email": "<3 concise sentences: verified observation, missed-lead recovery value, and a low-friction question>",
   "selected_email": "<selected email string or null>"
 }`;
 
@@ -126,6 +139,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     try {
       console.log(`[cron/process-leads] Scoring lead: ${lead.id} (${lead.business_name})`);
 
+      if (!isUnitedStatesLocation(lead.address) || !isHomeServiceCategory(lead.category)) {
+        await supabaseAdmin
+          .from('leads')
+          .update({
+            status: 'rejected',
+            opportunity_score: 0,
+            ai_reasoning: 'Excluded from the active US-only HVAC, plumbing, roofing, and garage-door pilot.',
+            processing_started_at: null,
+          })
+          .eq('id', lead.id);
+        results.push({ id: lead.id, status: 'success', score: 0 });
+        continue;
+      }
+
       // Fetch tenant API keys
       const { data: orgSettings } = await supabaseAdmin
         .from('organization_settings')
@@ -165,7 +192,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const websiteText = await fetchWebsiteText(finalWebsite);
         
         if (websiteText.includes('Failed to load') || websiteText.includes('failed to load')) {
-          enrichedData = `- Website Analysis: Their website exists but could not be scraped by our bot (likely anti-bot protection or a slow server). Do NOT mention that their website failed to load. Assume they have a basic website, and pitch them on advanced AI RevOps, Automation, or SEO systems instead.\n`;
+          enrichedData = '- Website Analysis: A website URL exists, but its public content could not be inspected. Treat the automation gap as unknown and do not invent a website observation.\n';
         } else {
           enrichedData = `- Scraped Website Content (Markdown): "${websiteText}"\n`;
         }
@@ -203,8 +230,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           enrichedData += `- Discovered Email Pool: []\n`;
         }
       } else {
-        console.log(`[cron/process-leads] No website found online for ${lead.business_name}. High priority target.`);
-        enrichedData = '- Website Analysis: NO WEBSITE OR DIGITAL PRESENCE FOUND. Massive opportunity for a Full-Stack MVP.\n- Discovered Email Pool: []\n';
+        console.log(`[cron/process-leads] No website found online for ${lead.business_name}. Low-confidence campaign fit.`);
+        enrichedData = '- Website Analysis: No website or public digital presence was found. Cap the score at 45 because this pilot requires established inbound demand.\n- Discovered Email Pool: []\n';
       }
 
       // Build the lead data string for the AI prompt
@@ -250,7 +277,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const hasEmail = !!aiResult.selected_email;
       const hasPhone = !!lead.phone;
 
-      if (aiResult.score < 60 || (!hasEmail && !hasPhone)) {
+      if (aiResult.score < ACTIVE_CAMPAIGN.qualificationThreshold || (!hasEmail && !hasPhone)) {
         newStatus = 'rejected';
       }
 
@@ -288,7 +315,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             
             const html = buildOutreachHtml({ businessName, body: draft, unsubscribeLink });
             const text = buildOutreachText({ businessName, body: draft, unsubscribeLink });
-            const subject = `Partnership Inquiry - ${businessName}`;
+            const subject = `A missed-enquiry idea for ${businessName}`;
             
             try {
               await addToQueue({
@@ -298,6 +325,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 bodyText: text,
                 targetEmail: targetEmail,
                 unsubscribeUrl: buildOneClickUnsubscribeUrl(lead.id),
+                campaignId: campaignSequenceId('initial'),
               }, lead.organization_id);
               await supabaseAdmin.from('leads').update({ status: 'approved' }).eq('id', lead.id);
               console.log(`[cron/process-leads] Auto-queued lead ${lead.id} for email outreach`);
@@ -367,7 +395,7 @@ Business Profile to Analyze:
 - Website: ${lead.website ?? 'Not provided'}
 - Google Maps URL: ${lead.google_maps_url ?? 'Not provided'}
 ${enrichedData}
-Analyze this business for custom software engineering sales potential and respond with a JSON object only.
+  Decide whether this company is established enough to receive meaningful inbound leads while lacking an obvious automated response, booking, or follow-up system. Respond with a JSON object only.
 `.trim();
 }
 

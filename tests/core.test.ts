@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isBearerAuthorized, isCronAuthorized } from '../lib/auth';
-import { buildOutreachHtml } from '../lib/email/templates';
+import { appendComplianceFooter, buildOutreachHtml } from '../lib/email/templates';
 import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl, createUnsubscribeToken, verifyUnsubscribeToken } from '../lib/email/unsubscribe';
 import { findEmailWithRegex } from '../lib/email-parser';
+import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedStatesLocation, validateCampaignTarget } from '../lib/campaign';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -44,5 +45,30 @@ describe('outreach safety', () => {
   it('deduplicates scraped emails and excludes common false positives', () => {
     const emails = findEmailWithRegex('A@Example.org a@example.org hero@2x.png demo@example.com');
     expect(emails.map((entry) => entry.email)).toEqual(['a@example.org']);
+  });
+
+  it('adds sender identification and an escaped postal address', () => {
+    const result = appendComplianceFooter('<html><body>Hello</body></html>', 'Hello', 'AurionStack', '10 Main St & Suite 2');
+    expect(result.html).toContain('AurionStack<br/>10 Main St &amp; Suite 2');
+    expect(result.text).toContain('AurionStack\n10 Main St & Suite 2');
+  });
+});
+
+describe('active campaign targeting', () => {
+  it('accepts the US home-services pilot targets', () => {
+    expect(validateCampaignTarget('HVAC contractors', 'Dallas, Texas')).toBeNull();
+    expect(validateCampaignTarget('garage door company', 'Phoenix, AZ 85001')).toBeNull();
+    expect(validateCampaignTarget('roofing company', 'Austin, Texas, USA')).toBeNull();
+    expect(ACTIVE_CAMPAIGN.targets).toHaveLength(2);
+    expect(ACTIVE_CAMPAIGN.targets.reduce((total, target) => total + target.maxResults, 0)).toBe(100);
+    expect(ACTIVE_CAMPAIGN.followUps.map((followUp) => followUp.delayDays)).toEqual([1, 3]);
+    expect(campaignSequenceId(2)).toBe('us-home-services-pilot:follow-up-2');
+  });
+
+  it('rejects India, other international markets, and unrelated niches', () => {
+    expect(isUnitedStatesLocation('Mumbai, India')).toBe(false);
+    expect(isHomeServiceCategory('Dental implant specialist')).toBe(false);
+    expect(validateCampaignTarget('HVAC contractors', 'London, UK')).toMatch(/United States/);
+    expect(validateCampaignTarget('Marketing agency', 'Dallas, Texas')).toMatch(/HVAC/);
   });
 });

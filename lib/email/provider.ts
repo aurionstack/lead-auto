@@ -2,6 +2,7 @@
 // lib/email/provider.ts
 // ============================================================
 import nodemailer from 'nodemailer';
+import { appendComplianceFooter } from './templates';
 
 export interface SmtpConfig {
   host: string;
@@ -11,6 +12,7 @@ export interface SmtpConfig {
   fromEmail: string;
   fromName?: string;
   replyTo?: string;
+  postalAddress?: string;
 }
 
 export interface SendEmailParams {
@@ -30,6 +32,10 @@ export async function sendOutreachEmail(params: SendEmailParams, config: SmtpCon
     console.warn('SMTP credentials are not configured. Email will not be sent.');
     return { success: false, error: 'SMTP credentials missing for organization' };
   }
+  if (!config.postalAddress?.trim()) {
+    console.warn('A physical postal address is required for commercial outreach. Email will not be sent.');
+    return { success: false, error: 'Physical postal address missing for organization' };
+  }
 
   const transporter = nodemailer.createTransport({
     host: config.host,
@@ -43,14 +49,20 @@ export async function sendOutreachEmail(params: SendEmailParams, config: SmtpCon
 
   try {
     const fromStr = config.fromName ? `"${config.fromName}" <${config.fromEmail}>` : config.fromEmail;
+    const content = appendComplianceFooter(
+      params.html,
+      params.text,
+      config.fromName || 'AurionStack',
+      config.postalAddress,
+    );
 
     const info = await transporter.sendMail({
       from: fromStr,
       to: params.to,
       replyTo: config.replyTo || config.fromEmail,
       subject: params.subject,
-      text: params.text,
-      html: params.html,
+      text: content.text,
+      html: content.html,
       messageId: params.messageId, // Useful for tracking replies/bounces
       headers: params.unsubscribeUrl ? {
         'List-Unsubscribe': `<${params.unsubscribeUrl}>`,

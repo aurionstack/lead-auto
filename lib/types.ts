@@ -99,6 +99,7 @@ export interface OrganizationSettings {
   smtp_password?: string | null;
   from_email?: string | null;
   from_name?: string | null;
+  postal_address?: string | null;
 }
 
 export interface OutreachRecord {

@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase-client';
 import AnalyticsChart from './AnalyticsChart';
 import SentInbox from './SentInbox';
 import BatchListClient from './BatchListClient';
+import { ACTIVE_CAMPAIGN } from '@/lib/campaign';
 
 type Tab = 'overview' | 'inbox' | 'campaigns';
 
@@ -76,7 +77,7 @@ export default function DashboardTabs({ data }: { data: DashboardData }) {
           <div className="mt-auto space-y-4">
             <div className="rounded-2xl border border-emerald-300/10 bg-emerald-300/[0.04] p-4">
               <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300"><span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex size-2 rounded-full bg-emerald-400" /></span>Automation online</div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">Lead discovery and outreach queues are monitored continuously.</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">US home-service discovery and email queues are monitored continuously.</p>
             </div>
             <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 hover:bg-white/[0.04] hover:text-slate-200"><LogOut className="size-[18px]" /> Sign out</button>
           </div>
@@ -101,7 +102,7 @@ export default function DashboardTabs({ data }: { data: DashboardData }) {
               <section className="relative overflow-hidden rounded-3xl border border-indigo-300/10 bg-[linear-gradient(115deg,rgba(99,102,241,.16),rgba(17,20,28,.72)_48%,rgba(34,211,238,.07))] p-6 sm:p-8">
                 <div className="pointer-events-none absolute -right-20 -top-28 size-72 rounded-full bg-indigo-500/10 blur-3xl" />
                 <div className="relative flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
-                  <div className="max-w-2xl"><div className="inline-flex items-center gap-2 rounded-full border border-indigo-300/15 bg-indigo-300/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200"><Bolt className="size-3" /> Pipeline intelligence</div><h2 className="mt-5 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">Your outbound engine, at a glance.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-slate-400 sm:text-base">LeadFlow discovers prospects, scores intent, and moves qualified opportunities into personalized outreach.</p></div>
+                  <div className="max-w-2xl"><div className="inline-flex items-center gap-2 rounded-full border border-indigo-300/15 bg-indigo-300/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200"><Bolt className="size-3" /> {ACTIVE_CAMPAIGN.name}</div><h2 className="mt-5 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">Recover leads they already paid for.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-slate-400 sm:text-base">Qualify established US home-service companies that have inbound demand but lack an obvious instant response, booking, or follow-up flow.</p></div>
                   <div className="grid grid-cols-2 gap-3 sm:flex"><QuickStat label="Contact rate" value={`${contactRate}%`} detail={`${data.leadStats.contacted} reached`} /><QuickStat label="Reply rate" value={`${replyRate}%`} detail={`${data.leadStats.replied} replies`} /></div>
                 </div>
               </section>

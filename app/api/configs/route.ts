@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hasDashboardSession } from '@/lib/auth';
+import { validateCampaignTarget } from '@/lib/campaign';
 
 export async function POST(request: NextRequest) {
   if (!(await hasDashboardSession())) {
@@ -18,9 +19,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const cleanQuery = search_query.trim();
+    const cleanLocation = location.trim();
+    const campaignError = validateCampaignTarget(cleanQuery, cleanLocation);
+    if (campaignError) {
+      return NextResponse.json({ error: campaignError }, { status: 400 });
+    }
+
     const { error } = await supabaseAdmin
       .from('search_configs')
-      .insert([{ search_query: search_query.trim(), location: location.trim(), channel }]);
+      .insert([{ search_query: cleanQuery, location: cleanLocation, channel }]);
 
     if (error) throw error;
 
