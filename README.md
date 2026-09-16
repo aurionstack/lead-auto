@@ -126,6 +126,8 @@ Use a stable HTTPS production URL. A tunnel may be used only for local testing.
 
 ## Local setup
 
+Production builds use `next build --webpack` to avoid the Turbopack build process hanging on the deployment runner. Development continues to use Turbopack. If a deployment still stalls immediately after `npm run build`, redeploy once with **Use existing Build Cache** disabled in Vercel. Keep the Vercel project Node.js setting on 22.x to match `package.json`.
+
 1. Use Node.js 22.
 2. Copy `.env.local.example` to `.env.local` and configure only the providers you use.
 3. Apply the required Supabase migrations manually.
