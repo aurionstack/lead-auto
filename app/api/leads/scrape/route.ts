@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hasDashboardSession } from '@/lib/auth';
 import { validateCampaignTarget } from '@/lib/tools/lead-recovery/campaign';
+import { apifyTokens, fetchApify } from '@/lib/apify';
+import { getCurrentOrganizationId } from '@/lib/tenancy';
 
 const APIFY_ACTOR_ID = 'compass~crawler-google-places';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
@@ -23,9 +25,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
-  const apifyToken = process.env.APIFY_TOKEN;
+  const organizationId = await getCurrentOrganizationId();
+  if (!organizationId) return NextResponse.json({ error: 'Workspace access required.' }, { status: 403 });
+  const { data: settings, error: settingsError } = await supabaseAdmin.from('organization_settings').select('apify_api_token').eq('organization_id', organizationId).maybeSingle();
+  if (settingsError) return NextResponse.json({ error: 'Provider settings unavailable.' }, { status: 503 });
+  const tokens = apifyTokens(settings?.apify_api_token);
   const webhookSecret = process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET;
-  if (!apifyToken || !webhookSecret) {
+  if (!tokens.length || !webhookSecret) {
     return NextResponse.json({ error: 'APIFY_TOKEN or APIFY_WEBHOOK_SECRET not configured.' }, { status: 500 });
   }
 
@@ -66,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // 1. Create a new scrape job in the database
   const { data: jobData, error: jobError } = await supabaseAdmin
     .from('scrape_jobs')
-    .insert([{ location: cleanLocation, category: cleanCategory, channel, status: 'scraping' }])
+    .insert([{ location: cleanLocation, category: cleanCategory, channel, status: 'scraping', organization_id: organizationId }])
     .select('id')
     .single();
 
@@ -92,8 +98,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Call Apify to start a new actor run
   try {
-    const apifyResponse = await fetch(
-      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?token=${apifyToken}&webhooks=${encodeURIComponent(webhooksBase64)}`,
+    const apifyResponse = await fetchApify(
+      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?webhooks=${encodeURIComponent(webhooksBase64)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,7 +108,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           maxCrawledPlacesPerSearch: maxResults,
           language: 'en',
         }),
-      }
+      }, tokens
     );
 
     if (!apifyResponse.ok) {

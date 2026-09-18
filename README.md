@@ -126,6 +126,8 @@ Use a stable HTTPS production URL. A tunnel may be used only for local testing.
 
 ## Local setup
 
+Apify supports a server-only `APIFY_FALLBACK_TOKEN` environment variable. Workspace tokens take precedence over `APIFY_TOKEN`; the secondary token is tried on credit/usage-limit rejections. Dataset reads also try the secondary token on access errors so fallback-account runs can be imported. Run creation is never retried after network timeouts or server errors, which could otherwise create duplicate paid runs. A second token for the same Apify account shares that account's credit limits. Set the fallback variable in Vercel Production and Preview, then redeploy to enable it there.
+
 Production builds use `next build --webpack` to avoid the Turbopack build process hanging on the deployment runner. Development continues to use Turbopack. If a deployment still stalls immediately after `npm run build`, redeploy once with **Use existing Build Cache** disabled in Vercel. Keep the Vercel project Node.js setting on 22.x to match `package.json`.
 
 1. Use Node.js 22.

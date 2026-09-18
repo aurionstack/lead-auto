@@ -26,6 +26,7 @@ import { isBearerAuthorized } from '@/lib/auth';
 export const maxDuration = 60;
 
 // Apify Dataset API base URL
+import { apifyTokens, fetchApify } from '@/lib/apify';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -90,7 +91,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     apifyToken = orgSettings?.apify_api_token || process.env.APIFY_TOKEN || null;
   }
 
-  if (!apifyToken) {
+  const tokens = apifyTokens(apifyToken);
+  if (!organizationId || !tokens.length) {
     console.error(`[webhook/apify] APIFY_TOKEN is not configured for org ${organizationId}.`);
     return NextResponse.json(
       { success: false, error: 'Apify token missing for organization.' },
@@ -103,11 +105,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // For larger datasets, implement pagination using `offset` param.
   let rawItems: ApifyLeadItem[] = [];
   try {
-    const apifyUrl = `${APIFY_BASE_URL}/datasets/${datasetId}/items?token=${apifyToken}&limit=1000&clean=true`;
-    const apifyResponse = await fetch(apifyUrl, {
+    const apifyUrl = `${APIFY_BASE_URL}/datasets/${datasetId}/items?limit=1000&clean=true`;
+    const apifyResponse = await fetchApify(apifyUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-    });
+    }, tokens);
 
     if (!apifyResponse.ok) {
       const errorText = await apifyResponse.text();

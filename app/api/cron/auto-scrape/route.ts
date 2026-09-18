@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isCronAuthorized } from '@/lib/auth';
 import type { SearchConfig } from '@/lib/types';
+import { apifyTokens, fetchApify } from '@/lib/apify';
 
 export const maxDuration = 60;
 
@@ -61,8 +62,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .eq('organization_id', claimedConfig.organization_id)
     .single();
 
-  const apifyToken = orgSettings?.apify_api_token || process.env.APIFY_TOKEN;
-  if (!apifyToken) {
+  const tokens = apifyTokens(orgSettings?.apify_api_token);
+  if (!tokens.length) {
     console.error(`[cron/auto-scrape] Apify token missing for org ${claimedConfig.organization_id}`);
     return NextResponse.json({ error: 'Apify token missing.' }, { status: 500 });
   }
@@ -110,8 +111,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // 4. Call Apify
   try {
-    const apifyResponse = await fetch(
-      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?token=${apifyToken}&webhooks=${encodeURIComponent(webhooksBase64)}`,
+    const apifyResponse = await fetchApify(
+      `${APIFY_BASE_URL}/acts/${APIFY_ACTOR_ID}/runs?webhooks=${encodeURIComponent(webhooksBase64)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,7 +121,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           maxCrawledPlacesPerSearch: maxResults,
           language: 'en',
         }),
-      }
+      }, tokens
     );
 
     if (!apifyResponse.ok) {
