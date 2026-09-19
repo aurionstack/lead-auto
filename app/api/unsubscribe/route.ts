@@ -30,10 +30,10 @@ export async function POST(request: Request) {
     return htmlResponse('Invalid unsubscribe request', 400);
   }
 
-  const { data, error } = await supabaseAdmin.from('leads').select('email').eq('id', lead).maybeSingle();
+  const { data, error } = await supabaseAdmin.from('leads').select('email, organization_id').eq('id', lead).maybeSingle();
   if (error || !data?.email) return htmlResponse('This email record was not found', 404);
 
-  await addSuppression(data.email, 'unsubscribed');
+  await addSuppression(data.email, 'unsubscribed', data.organization_id);
   await supabaseAdmin.from('leads').update({ status: 'unsubscribed' }).eq('id', lead);
   return htmlResponse('You have been unsubscribed');
 }

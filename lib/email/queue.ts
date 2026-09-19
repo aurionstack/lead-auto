@@ -62,7 +62,7 @@ export async function addToQueue(item: QueueItem, organizationId: string) {
   }
   
   // Log the queued event
-  await logEvent(item.leadId, data.id, 'queued', null, { target: item.targetEmail });
+  await logEvent(item.leadId, data.id, organizationId, 'queued', null, { target: item.targetEmail });
   
   return data;
 }
@@ -89,7 +89,7 @@ export async function processQueue(batchSize = 10) {
       const targetEmail = item.target_email;
 
       if (!targetEmail) {
-        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'No target email stored for queue item');
+        await markQueueFailed(item.id, item.lead_id, item.organization_id, item.attempt_count, 'No target email stored for queue item');
         continue;
       }
 
@@ -100,7 +100,7 @@ export async function processQueue(batchSize = 10) {
         .maybeSingle();
 
       if (!lead || ['replied', 'unsubscribed', 'bounced', 'suppressed', 'rejected'].includes(lead.status)) {
-        await skipQueueItem(item.id, item.lead_id, `Lead status is ${lead?.status ?? 'missing'}; outreach stopped`);
+        await skipQueueItem(item.id, item.lead_id, item.organization_id, `Lead status is ${lead?.status ?? 'missing'}; outreach stopped`);
         continue;
       }
 
@@ -109,6 +109,7 @@ export async function processQueue(batchSize = 10) {
         await markQueueFailed(
           item.id,
           item.lead_id,
+          item.organization_id,
           item.attempt_count,
           'Email became suppressed before sending',
           { retry: false, terminalLeadStatus: 'suppressed' },
@@ -116,7 +117,7 @@ export async function processQueue(batchSize = 10) {
         continue;
       }
       
-      await logEvent(item.lead_id, item.id, 'sending');
+      await logEvent(item.lead_id, item.id, item.organization_id, 'sending');
 
       const outboundMessageId = `<outreach-${item.id}@aurionstack.dev>`;
       const { error: reservationError } = await supabaseAdmin
@@ -125,7 +126,7 @@ export async function processQueue(batchSize = 10) {
         .eq('id', item.id)
         .eq('status', 'locked');
       if (reservationError) {
-        await markQueueFailed(item.id, item.lead_id, item.attempt_count, 'Could not reserve provider message ID');
+        await markQueueFailed(item.id, item.lead_id, item.organization_id, item.attempt_count, 'Could not reserve provider message ID');
         continue;
       }
 
@@ -152,6 +153,7 @@ export async function processQueue(batchSize = 10) {
         await markQueueFailed(
           item.id,
           item.lead_id,
+          item.organization_id,
           item.attempt_count,
           `Organization sender configuration incomplete: ${missing}`,
           { retry: false },
@@ -192,7 +194,7 @@ export async function processQueue(batchSize = 10) {
           })
           .eq('id', item.id);
 
-        await logEvent(item.lead_id, item.id, 'sent', result.messageId);
+        await logEvent(item.lead_id, item.id, item.organization_id, 'sent', result.messageId);
 
         // Update lead lifecycle status
         await supabaseAdmin
@@ -206,15 +208,15 @@ export async function processQueue(batchSize = 10) {
         } catch (followUpError: unknown) {
           const message = followUpError instanceof Error ? followUpError.message : 'Unknown follow-up scheduling error';
           console.error(`[outreach] Email ${item.id} sent, but its next follow-up could not be scheduled:`, message);
-          await logEvent(item.lead_id, item.id, 'follow_up_scheduling_failed', result.messageId, { error: message });
+          await logEvent(item.lead_id, item.id, item.organization_id, 'follow_up_scheduling_failed', result.messageId, { error: message });
         }
 
       } else {
-        await markQueueFailed(item.id, item.lead_id, item.attempt_count, result.error?.toString() || 'Unknown provider error');
+        await markQueueFailed(item.id, item.lead_id, item.organization_id, item.attempt_count, result.error?.toString() || 'Unknown provider error');
       }
       
     } catch (error: unknown) {
-       await markQueueFailed(item.id, item.lead_id, item.attempt_count, error instanceof Error ? error.message : 'Unexpected crash');
+       await markQueueFailed(item.id, item.lead_id, item.organization_id, item.attempt_count, error instanceof Error ? error.message : 'Unexpected crash');
     }
   }
 
@@ -251,18 +253,19 @@ async function scheduleNextCampaignFollowUp(
   }, item.organization_id);
 }
 
-async function skipQueueItem(queueId: string, leadId: string, reason: string) {
+async function skipQueueItem(queueId: string, leadId: string, organizationId: string, reason: string) {
   await supabaseAdmin
     .from('outreach_queue')
     .update({ status: 'failed', error_message: reason, locked_at: null, locked_by: null, updated_at: new Date().toISOString() })
     .eq('id', queueId)
     .eq('status', 'locked');
-  await logEvent(leadId, queueId, 'skipped', null, { reason });
+  await logEvent(leadId, queueId, organizationId, 'skipped', null, { reason });
 }
 
 async function markQueueFailed(
   queueId: string,
   leadId: string,
+  organizationId: string,
   attemptCount: number,
   errorMessage: string,
   options: { retry?: boolean; terminalLeadStatus?: 'rejected' | 'suppressed' } = {},
@@ -284,7 +287,7 @@ async function markQueueFailed(
     .eq('id', queueId)
     .eq('status', 'locked');
     
-  await logEvent(leadId, queueId, shouldRetry ? 'deferred' : 'failed', null, { error: errorMessage, attemptCount });
+  await logEvent(leadId, queueId, organizationId, shouldRetry ? 'deferred' : 'failed', null, { error: errorMessage, attemptCount });
 
   if (!shouldRetry && options.terminalLeadStatus) {
     await supabaseAdmin
@@ -295,12 +298,13 @@ async function markQueueFailed(
   }
 }
 
-export async function logEvent(leadId: string, queueId: string | null, eventType: string, providerMsgId?: string | null, metadata?: Record<string, unknown>) {
+export async function logEvent(leadId: string, queueId: string | null, organizationId: string, eventType: string, providerMsgId?: string | null, metadata?: Record<string, unknown>) {
   await supabaseAdmin
     .from('email_events')
     .insert([{
       lead_id: leadId,
       queue_id: queueId,
+      organization_id: organizationId,
       event_type: eventType,
       provider_message_id: providerMsgId,
       provider_payload: metadata

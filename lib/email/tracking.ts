@@ -16,14 +16,15 @@ export interface WebhookEvent {
  * Handles incoming webhook events from the email provider.
  */
 export async function logEmailEvent(event: WebhookEvent) {
-  let leadId = null;
-  let queueId = null;
+  let leadId: string | null = null;
+  let queueId: string | null = null;
+  let organizationId: string | null = null;
 
   // 1. Try to find the associated queue_id or lead_id from the message_id
   if (event.messageId) {
     const { data: queueItem } = await supabaseAdmin
       .from('outreach_queue')
-      .select('id, lead_id')
+      .select('id, lead_id, organization_id')
       .eq('provider_message_id', event.messageId)
       .limit(1)
       .maybeSingle();
@@ -31,39 +32,62 @@ export async function logEmailEvent(event: WebhookEvent) {
     if (queueItem) {
       queueId = queueItem.id;
       leadId = queueItem.lead_id;
+      organizationId = queueItem.organization_id;
     }
   }
 
-  // 1b. Fallback: resolve the primary lead email when a provider omits message ID.
+  // 1b. Resolve from the tenant-owned queue snapshot when a provider omits a message ID.
   if (!leadId) {
-    const { data: lead } = await supabaseAdmin
-      .from('leads')
-      .select('id')
-      .ilike('email', event.email)
+    const { data: queueItem } = await supabaseAdmin
+      .from('outreach_queue')
+      .select('id, lead_id, organization_id')
+      .ilike('target_email', event.email)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (lead) leadId = lead.id;
+    if (queueItem) {
+      queueId = queueItem.id;
+      leadId = queueItem.lead_id;
+      organizationId = queueItem.organization_id;
+    }
   }
 
   // 2. Insert into email_events
-  if (leadId) {
-    await supabaseAdmin
-      .from('email_events')
-      .insert([{
-        lead_id: leadId,
-        queue_id: queueId,
-        event_type: event.eventType,
-        provider_message_id: event.messageId,
-        provider_payload: event.metadata,
-        event_timestamp: event.timestamp.toISOString()
-      }]);
+  if (leadId && organizationId) {
+    const terminalEvent = ['delivered', 'bounced', 'complained', 'unsubscribed', 'replied'].includes(event.eventType);
+    let duplicate = false;
+    if (terminalEvent && queueId) {
+      const { data: existing } = await supabaseAdmin
+        .from('email_events')
+        .select('id')
+        .eq('queue_id', queueId)
+        .eq('event_type', event.eventType)
+        .limit(1)
+        .maybeSingle();
+      duplicate = Boolean(existing);
+    }
+
+    if (!duplicate) {
+      const { error } = await supabaseAdmin
+        .from('email_events')
+        .insert([{
+          lead_id: leadId,
+          queue_id: queueId,
+          organization_id: organizationId,
+          event_type: event.eventType,
+          provider_message_id: event.messageId,
+          provider_payload: event.metadata,
+          event_timestamp: event.timestamp.toISOString()
+        }]);
+      if (error) throw error;
+    }
   } else {
     console.warn(`Could not resolve lead for email event on ${event.email} (type: ${event.eventType})`);
   }
 
   // 3. Handle suppressions automatically
-  if (['bounced', 'complained', 'unsubscribed'].includes(event.eventType)) {
-    await addSuppression(event.email, event.eventType);
+  if (leadId && organizationId && ['bounced', 'complained', 'unsubscribed'].includes(event.eventType)) {
+    await addSuppression(event.email, event.eventType, organizationId);
 
     if (leadId) {
       // Mark lead as dead based on the event
@@ -81,6 +105,17 @@ export async function logEmailEvent(event: WebhookEvent) {
       .from('leads')
       .update({ status: 'replied' })
       .eq('id', leadId);
+
+    // Never send a scheduled follow-up after a reply is recorded.
+    await supabaseAdmin
+      .from('outreach_queue')
+      .update({
+        status: 'failed',
+        error_message: 'Stopped automatically after a reply',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('lead_id', leadId)
+      .eq('status', 'pending');
   }
 
   return { success: true };

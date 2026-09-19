@@ -12,6 +12,7 @@ import { createAurionStackMcpServer } from '../lib/mcp/server';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { parseEmailProviderEvents } from '../lib/email/webhook';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -24,6 +25,30 @@ describe('authorization', () => {
     vi.stubEnv('CRON_SECRET', 'cron-secret');
     expect(isCronAuthorized(new Request('https://example.com', { headers: { authorization: 'Bearer wrong' } }))).toBe(false);
     expect(isCronAuthorized(new Request('https://example.com', { headers: { authorization: 'Bearer cron-secret' } }))).toBe(true);
+  });
+});
+
+describe('email provider webhooks', () => {
+  it('parses SMTP2GO delivery payloads and their custom message ID', () => {
+    const [event] = parseEmailProviderEvents({
+      event: 'delivered',
+      rcpt: 'owner@example.com',
+      'message-id': '<outreach-queue-id@aurionstack.dev>',
+      time: 1_789_000_000,
+    });
+    expect(event).toMatchObject({
+      email: 'owner@example.com',
+      eventType: 'delivered',
+      messageId: '<outreach-queue-id@aurionstack.dev>',
+    });
+    expect(event.timestamp).toBeInstanceOf(Date);
+  });
+
+  it('maps safety events and ignores non-delivery lifecycle events', () => {
+    expect(parseEmailProviderEvents({ event: 'bounce', recipients: ['bad@example.com'] })[0]?.eventType).toBe('bounced');
+    expect(parseEmailProviderEvents({ event: 'spam', rcpt: 'bad@example.com' })[0]?.eventType).toBe('complained');
+    expect(parseEmailProviderEvents({ event: 'processed', rcpt: 'ok@example.com' })).toEqual([]);
+    expect(parseEmailProviderEvents({ event: 'reject', rcpt: 'ok@example.com' })).toEqual([]);
   });
 });
 

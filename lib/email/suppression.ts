@@ -30,13 +30,13 @@ export async function isSuppressed(email: string): Promise<boolean> {
 /**
  * Adds an email to the suppression list.
  */
-export async function addSuppression(email: string, reason: string): Promise<void> {
+export async function addSuppression(email: string, reason: string, organizationId?: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
   const { error } = await supabaseAdmin
     .from('email_suppressions')
     .upsert(
-      { email: normalizedEmail, reason }, 
+      { email: normalizedEmail, reason, ...(organizationId ? { organization_id: organizationId } : {}) },
       { onConflict: 'email' }
     );
 
