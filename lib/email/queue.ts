@@ -166,6 +166,7 @@ export async function processQueue(batchSize = 10) {
         pass: orgSettings.smtp_password,
         fromEmail: orgSettings.from_email || orgSettings.smtp_user,
         fromName: orgSettings.from_name,
+        replyTo: process.env.EMAIL_REPLY_TO || orgSettings.from_email || orgSettings.smtp_user,
         postalAddress: orgSettings.postal_address,
       };
 

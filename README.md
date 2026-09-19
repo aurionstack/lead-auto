@@ -130,6 +130,8 @@ Apify supports a server-only `APIFY_FALLBACK_TOKEN` environment variable. Worksp
 
 Production builds use `next build --webpack` to avoid the Turbopack build process hanging on the deployment runner. Development continues to use Turbopack. If a deployment still stalls immediately after `npm run build`, redeploy once with **Use existing Build Cache** disabled in Vercel. Keep the Vercel project Node.js setting on 22.x to match `package.json`.
 
+Set the server-only `EMAIL_REPLY_TO` environment variable to the inbox that should receive prospect replies. The visible sender remains the workspace `from_email`; the delivery worker adds `Reply-To` from this variable. Existing messages retain the reply address they were originally sent with.
+
 1. Use Node.js 22.
 2. Copy `.env.local.example` to `.env.local` and configure only the providers you use.
 3. Apply the required Supabase migrations manually.
