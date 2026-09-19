@@ -15,6 +15,10 @@ export interface DiscoveredEmail {
   confidence?: string;
   name?: string;
   title?: string;
+  sourceUrl?: string;
+  verificationStatus?: 'valid' | 'invalid' | 'accept_all' | 'webmail' | 'disposable' | 'unknown' | 'blocked' | 'unverified';
+  verifiedAt?: string;
+  selected?: boolean;
 }
 
 export interface ScrapeJob {

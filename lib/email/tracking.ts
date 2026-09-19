@@ -129,5 +129,5 @@ export async function logEmailEvent(event: WebhookEvent) {
       .eq('id', queueId);
   }
 
-  return { success: true };
+  return { success: true, matched: Boolean(leadId && organizationId), queueId };
 }

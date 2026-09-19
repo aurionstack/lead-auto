@@ -56,3 +56,21 @@ export async function findEmailWithHunter(domain: string, hunterApiKey?: string 
     return [];
   }
 }
+
+export async function verifyEmailWithHunter(email: string, hunterApiKey?: string | null) {
+  if (!hunterApiKey) return { status: 'unverified' as const, verifiedAt: null };
+  try {
+    const response = await fetch(`https://api.hunter.io/v2/email-verifier?email=${encodeURIComponent(email)}&api_key=${hunterApiKey}`);
+    if (!response.ok) {
+      console.error(`[lib/hunter] Email verifier error: ${response.status} ${response.statusText}`);
+      return { status: 'unknown' as const, verifiedAt: new Date().toISOString() };
+    }
+    const payload = await response.json() as { data?: { status?: string; score?: number } };
+    const allowed = ['valid', 'invalid', 'accept_all', 'webmail', 'disposable', 'unknown', 'blocked'] as const;
+    const status = allowed.find((value) => value === payload.data?.status) ?? 'unknown';
+    return { status, score: payload.data?.score, verifiedAt: new Date().toISOString() };
+  } catch (error) {
+    console.error('[lib/hunter] Email verifier request failed:', error);
+    return { status: 'unknown' as const, verifiedAt: new Date().toISOString() };
+  }
+}

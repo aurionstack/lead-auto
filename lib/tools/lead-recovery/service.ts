@@ -29,7 +29,7 @@ export async function getLeadRecoveryDashboardData(): Promise<DashboardData> {
     contacted: leads.filter((lead) => lead.status === 'contacted').length,
     rejected: leads.filter((lead) => lead.status === 'rejected').length,
     new: leads.filter((lead) => ['new', 'processing'].includes(lead.status)).length,
-    qualified: leads.filter((lead) => lead.status === 'approved' || (lead.opportunity_score ?? 0) >= 70).length,
+    qualified: leads.filter((lead) => ['approved', 'contacted', 'replied'].includes(lead.status)).length,
     replied: leads.filter((lead) => lead.status === 'replied').length,
   };
 
@@ -194,7 +194,7 @@ export async function getLeadRecoveryStats(context: TenantReadContext) {
   const today = new Date().toISOString().slice(0, 10);
   return {
     prospects: leads.length,
-    qualified: leads.filter((lead) => lead.status === 'approved' || (lead.opportunity_score ?? 0) >= 70).length,
+    qualified: leads.filter((lead) => ['approved', 'contacted', 'replied'].includes(lead.status)).length,
     contacted: leads.filter((lead) => lead.status === 'contacted').length,
     replied: leads.filter((lead) => lead.status === 'replied').length,
     sent: queue.filter((item) => item.status === 'sent').length,

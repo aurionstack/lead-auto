@@ -28,7 +28,7 @@ import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Lead, AIResult, DiscoveredEmail } from '@/lib/types';
-import { findEmailWithHunter, getHunterApiKey } from '@/lib/hunter';
+import { findEmailWithHunter, getHunterApiKey, verifyEmailWithHunter } from '@/lib/hunter';
 import { findEmailWithRegex } from '@/lib/email-parser';
 import { addToQueue } from '@/lib/email/queue';
 import { buildOutreachHtml, buildOutreachText } from '@/lib/email/templates';
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           findEmailWithHunter(domain, hunterApiKey)
         ]);
         
-        const regexResult = findEmailWithRegex(websiteText);
+        const regexResult = findEmailWithRegex(websiteText).map((entry) => ({ ...entry, sourceUrl: finalWebsite || undefined }));
         
         // Pool and deduplicate
         const emailPool = new Map();
@@ -260,17 +260,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           (entry) => entry.email.toLowerCase() === aiResult.selected_email?.toLowerCase()
         );
         aiResult.selected_email = selected?.email || null;
+        if (selected && aiResult.selected_email) {
+          const verification = await verifyEmailWithHunter(aiResult.selected_email, hunterApiKey);
+          selected.verificationStatus = verification.status;
+          selected.verifiedAt = verification.verifiedAt || undefined;
+          selected.selected = true;
+          if (verification.status !== 'valid') {
+            console.warn(`[cron/process-leads] Selected email was not verified as valid (${verification.status}); outreach will not be queued.`);
+            aiResult.selected_email = null;
+          }
+        }
       }
 
       // ── 5c. Update Supabase row with AI results ───────────
-      let alternativeEmails: DiscoveredEmail[] = [];
-      if (allFoundEmails.length > 0) {
-        if (aiResult.selected_email) {
-          alternativeEmails = allFoundEmails.filter(e => e.email.toLowerCase() !== aiResult.selected_email?.toLowerCase());
-        } else {
-          alternativeEmails = allFoundEmails;
-        }
-      }
+      // Preserve provenance and verification for every candidate, including the selected address.
+      const alternativeEmails: DiscoveredEmail[] = allFoundEmails;
 
       // Determine the new status
       let newStatus = 'new';

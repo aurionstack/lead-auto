@@ -132,6 +132,14 @@ Production builds use `next build --webpack` to avoid the Turbopack build proces
 
 Set the server-only `EMAIL_REPLY_TO` environment variable to the inbox that should receive prospect replies. The visible sender remains the workspace `from_email`; the delivery worker adds `Reply-To` from this variable. Existing messages retain the reply address they were originally sent with.
 
+### Gmail reply synchronization
+
+`/api/cron/sync-replies` performs a metadata-only Gmail inbox scan for recent messages with `In-Reply-To` headers. It never downloads or stores message bodies. A matched reply records the lead as replied and stops pending follow-ups through the existing service guardrails.
+
+Configure a Google OAuth client and issue the refresh token with the narrow `gmail.metadata` scope, then add `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` to Vercel Production and Preview. The scheduled GitHub workflow calls the sync every five minutes. Without these variables the endpoint reports `configured: false` and performs no mailbox access.
+
+Newly selected lead addresses are checked with Hunter's email verifier before initial outreach is queued. Candidate provenance, verification result, and timestamp are preserved in `alternative_emails`; only a `valid` result can enter the initial email queue.
+
 1. Use Node.js 22.
 2. Copy `.env.local.example` to `.env.local` and configure only the providers you use.
 3. Apply the required Supabase migrations manually.
