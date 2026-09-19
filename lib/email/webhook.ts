@@ -42,6 +42,7 @@ export function parseEmailProviderEvents(payload: unknown): WebhookEvent[] {
     if (type.includes('bounce')) eventType = 'bounced';
     else if (type.includes('deliver')) eventType = 'delivered';
     else if (type.includes('spam') || type.includes('complain')) eventType = 'complained';
+    else if (type.includes('resub')) eventType = null;
     else if (type.includes('unsub')) eventType = 'unsubscribed';
     else if (type.includes('reply')) eventType = 'replied';
     else if (type.includes('open')) eventType = 'opened';
