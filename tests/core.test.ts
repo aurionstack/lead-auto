@@ -49,7 +49,7 @@ describe('email provider webhooks', () => {
     expect(parseEmailProviderEvents({ event: 'spam', rcpt: 'bad@example.com' })[0]?.eventType).toBe('complained');
     expect(parseEmailProviderEvents({ event: 'resubscribed', rcpt: 'ok@example.com' })).toEqual([]);
     expect(parseEmailProviderEvents({ event: 'processed', rcpt: 'ok@example.com' })).toEqual([]);
-    expect(parseEmailProviderEvents({ event: 'reject', rcpt: 'ok@example.com' })).toEqual([]);
+    expect(parseEmailProviderEvents({ event: 'reject', rcpt: 'ok@example.com' })[0]?.eventType).toBe('failed');
   });
 });
 

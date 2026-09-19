@@ -47,8 +47,8 @@ export function parseEmailProviderEvents(payload: unknown): WebhookEvent[] {
     else if (type.includes('reply')) eventType = 'replied';
     else if (type.includes('open')) eventType = 'opened';
     else if (type.includes('click')) eventType = 'clicked';
-    // SMTP2GO "processed" and "reject" events are intentionally ignored: a
-    // processed event is not delivery, while a reject may be a sender/config issue.
+    else if (type.includes('reject')) eventType = 'failed';
+    // SMTP2GO "processed" only confirms provider receipt, not delivery.
     if (!eventType) continue;
 
     parsed.push({

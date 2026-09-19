@@ -7,7 +7,7 @@ import { addSuppression } from './suppression';
 export interface WebhookEvent {
   messageId?: string; // Some providers don't send message IDs for all events
   email: string; // Target email
-  eventType: 'delivered' | 'bounced' | 'opened' | 'clicked' | 'replied' | 'complained' | 'unsubscribed';
+  eventType: 'delivered' | 'bounced' | 'opened' | 'clicked' | 'replied' | 'complained' | 'unsubscribed' | 'failed';
   timestamp: Date;
   metadata?: Record<string, unknown>;
 }
@@ -116,6 +116,17 @@ export async function logEmailEvent(event: WebhookEvent) {
       })
       .eq('lead_id', leadId)
       .eq('status', 'pending');
+  }
+
+  if (event.eventType === 'failed' && queueId) {
+    await supabaseAdmin
+      .from('outreach_queue')
+      .update({
+        status: 'failed',
+        error_message: 'Rejected by email provider',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', queueId);
   }
 
   return { success: true };
