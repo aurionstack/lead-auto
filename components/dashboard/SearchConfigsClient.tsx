@@ -108,7 +108,7 @@ export default function SearchConfigsClient({ configs, embedded = false }: Props
 
       <main className={`flex-1 overflow-y-auto ${embedded ? '' : 'p-6'}`}>
         <div className="max-w-5xl mx-auto">
-          {embedded && <div className="mb-5 flex justify-end"><button onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"><Plus className="size-4" /> Add inactive target</button></div>}
+          {embedded && <div className="mb-5 flex items-center justify-between gap-4"><p className="text-xs text-slate-500">Targets marked “In rotation” are selected one at a time by the daily scheduler, oldest run first.</p><button onClick={() => setShowModal(true)} className="flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"><Plus className="size-4" /> Add inactive target</button></div>}
           {!embedded && <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-xl font-semibold mb-1">Autonomous Search Targets</h1>
@@ -140,7 +140,7 @@ export default function SearchConfigsClient({ configs, embedded = false }: Props
                 {configs.map((config) => (
                   <tr key={config.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4">
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${config.is_active ? 'bg-emerald-300/10 text-emerald-300' : 'bg-amber-300/10 text-amber-300'}`}>{config.is_active ? 'Active' : 'Paused'}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${config.is_active ? 'bg-emerald-300/10 text-emerald-300' : 'bg-amber-300/10 text-amber-300'}`}>{config.is_active ? 'In rotation' : 'Paused'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 font-medium text-slate-200">

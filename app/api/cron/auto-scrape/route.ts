@@ -45,7 +45,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message: 'Scraping paused due to unscored leads backlog.' });
   }
 
-  // 2. Fetch the oldest untouched search configuration
+  // 2. Rotate fairly: the daily scheduler claims exactly one enabled target,
+  // selecting the target with the oldest last_scraped_at timestamp.
   const { data: config, error: fetchError } = await supabaseAdmin
     .rpc('claim_search_config')
     .maybeSingle();
