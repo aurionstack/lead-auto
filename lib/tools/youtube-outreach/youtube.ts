@@ -53,6 +53,14 @@ export interface DiscoveredYouTubeCreator {
   latestVideoUrl: string | null;
 }
 
+export async function verifyYouTubeApiConnection() {
+  const result = await youtubeJson<{ items?: Array<{ id?: string }> }>('channels', {
+    part: 'id',
+    id: 'UC_x5XG1OV2P6uZZ5FSM9Ttw',
+  });
+  return { configured: true, reachable: Boolean(result.items?.[0]?.id) };
+}
+
 export async function discoverYouTubeCreators(query: string, limit: number): Promise<DiscoveredYouTubeCreator[]> {
   const search = await youtubeJson<{ items?: SearchItem[] }>('search', {
     part: 'snippet', type: 'channel', q: query, maxResults: String(Math.max(1, Math.min(limit, 50))), relevanceLanguage: 'en', safeSearch: 'moderate',
