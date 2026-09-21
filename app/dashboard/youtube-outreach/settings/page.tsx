@@ -5,7 +5,7 @@ import PageHeader from '@/components/shared/PageHeader';
 const controls = [
   { icon: Database, title: 'Dedicated data boundary', detail: 'Creators, campaigns, notes, events, and queue records use YouTube-specific tables.' },
   { icon: MailCheck, title: 'Public email only', detail: 'A business email cannot be stored without recording its public source.' },
-  { icon: ShieldCheck, title: 'Paused by default', detail: 'Campaign and queue defaults prevent accidental discovery or sending.' },
+  { icon: ShieldCheck, title: 'Explicit activation', detail: 'Campaigns stay paused until an authenticated user confirms activation and every provider guard passes.' },
 ];
 
 export default function YouTubeSettingsPage() {

@@ -12,6 +12,47 @@ export interface WebhookEvent {
   metadata?: Record<string, unknown>;
 }
 
+async function logYouTubeEvent(event: WebhookEvent) {
+  if (!event.messageId) return null;
+  const { data: item } = await supabaseAdmin
+    .from('youtube_outreach_queue')
+    .select('id,creator_id,campaign_id,organization_id')
+    .eq('provider_message_id', event.messageId)
+    .limit(1)
+    .maybeSingle();
+  if (!item) return null;
+
+  const terminal = ['delivered', 'bounced', 'complained', 'unsubscribed', 'replied', 'failed'].includes(event.eventType);
+  const { data: existing } = terminal
+    ? await supabaseAdmin.from('youtube_outreach_events').select('id').eq('queue_id', item.id).eq('event_type', event.eventType).limit(1).maybeSingle()
+    : { data: null };
+  if (!existing) {
+    const { error } = await supabaseAdmin.from('youtube_outreach_events').insert({
+      organization_id: item.organization_id,
+      campaign_id: item.campaign_id,
+      creator_id: item.creator_id,
+      queue_id: item.id,
+      event_type: event.eventType,
+      event_timestamp: event.timestamp.toISOString(),
+      provider_payload: { ...event.metadata, providerMessageId: event.messageId },
+    });
+    if (error) throw error;
+  }
+  if (['bounced', 'complained', 'unsubscribed'].includes(event.eventType)) {
+    await addSuppression(event.email, event.eventType, item.organization_id);
+    await supabaseAdmin.from('youtube_creators').update({ status: event.eventType === 'unsubscribed' ? 'unsubscribed' : 'rejected' }).eq('id', item.creator_id);
+    await supabaseAdmin.from('youtube_outreach_queue').update({ status: 'cancelled', error_message: `Stopped after ${event.eventType}` }).eq('creator_id', item.creator_id).in('status', ['paused', 'pending', 'locked']);
+  }
+  if (event.eventType === 'replied') {
+    await supabaseAdmin.from('youtube_creators').update({ status: 'replied' }).eq('id', item.creator_id);
+    await supabaseAdmin.from('youtube_outreach_queue').update({ status: 'cancelled', error_message: 'Stopped automatically after a reply' }).eq('creator_id', item.creator_id).in('status', ['paused', 'pending', 'locked']);
+  }
+  if (event.eventType === 'failed') {
+    await supabaseAdmin.from('youtube_outreach_queue').update({ status: 'failed', error_message: 'Rejected by email provider' }).eq('id', item.id);
+  }
+  return { success: true, matched: true, queueId: item.id, tool: 'youtube-outreach' as const };
+}
+
 /**
  * Handles incoming webhook events from the email provider.
  */
@@ -33,6 +74,9 @@ export async function logEmailEvent(event: WebhookEvent) {
       queueId = queueItem.id;
       leadId = queueItem.lead_id;
       organizationId = queueItem.organization_id;
+    } else {
+      const youtubeResult = await logYouTubeEvent(event);
+      if (youtubeResult) return youtubeResult;
     }
   }
 

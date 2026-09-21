@@ -63,3 +63,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON request.' }, { status: 400 });
   }
 }
+
+export async function PATCH(request: Request) {
+  const organizationId = await getCurrentOrganizationId();
+  if (!organizationId) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  try {
+    const input = await request.json() as { id?: string; action?: 'activate' | 'pause'; confirmation?: string };
+    if (!input.id || !['activate', 'pause'].includes(input.action || '')) return NextResponse.json({ error: 'Invalid campaign action.' }, { status: 400 });
+    const supabase = await createClient();
+    const { data: campaign, error: campaignError } = await supabase.from('youtube_campaigns').select('*').eq('id', input.id).eq('organization_id', organizationId).maybeSingle();
+    if (campaignError || !campaign) return NextResponse.json({ error: 'Campaign not found.' }, { status: 404 });
+
+    if (input.action === 'activate') {
+      if (input.confirmation !== 'ACTIVATE YOUTUBE OUTREACH') return NextResponse.json({ error: 'Exact activation confirmation is required.' }, { status: 400 });
+      if (!process.env.YOUTUBE_API_KEY) return NextResponse.json({ error: 'YOUTUBE_API_KEY is not configured.' }, { status: 409 });
+      const { data: settings } = await supabase.from('organization_settings').select('smtp_host,smtp_user,smtp_password,from_email,postal_address,hunter_api_key').eq('organization_id', organizationId).maybeSingle();
+      if (!settings?.smtp_host || !settings.smtp_user || !settings.smtp_password || !settings.from_email || !settings.postal_address?.trim()) return NextResponse.json({ error: 'Complete SMTP sender and postal-address settings before activation.' }, { status: 409 });
+      if (!settings.hunter_api_key && !process.env.HUNTER_API_KEY) return NextResponse.json({ error: 'Hunter verification is required before activation.' }, { status: 409 });
+      if (settings.from_email.toLowerCase() !== campaign.sender_identity.toLowerCase()) return NextResponse.json({ error: 'Campaign sender must exactly match the configured workspace sender.' }, { status: 409 });
+      if (campaign.daily_limit < 1 || campaign.daily_discovery_target < 1) return NextResponse.json({ error: 'Discovery and send limits must be greater than zero.' }, { status: 409 });
+      const { error } = await supabase.from('youtube_campaigns').update({ status: 'active' }).eq('id', campaign.id).eq('organization_id', organizationId);
+      if (error) throw error;
+      await supabase.from('youtube_outreach_queue').update({ status: 'pending', scheduled_for: new Date().toISOString() }).eq('campaign_id', campaign.id).eq('organization_id', organizationId).eq('status', 'paused');
+      return NextResponse.json({ status: 'active' });
+    }
+
+    const { error } = await supabase.from('youtube_campaigns').update({ status: 'paused' }).eq('id', campaign.id).eq('organization_id', organizationId);
+    if (error) throw error;
+    await supabase.from('youtube_outreach_queue').update({ status: 'paused' }).eq('campaign_id', campaign.id).eq('organization_id', organizationId).eq('status', 'pending');
+    return NextResponse.json({ status: 'paused' });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Campaign action failed.' }, { status: 500 });
+  }
+}

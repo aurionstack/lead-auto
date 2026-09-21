@@ -13,6 +13,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseEmailProviderEvents } from '../lib/email/webhook';
+import { buildYouTubeUnsubscribeUrl, verifyYouTubeUnsubscribe } from '../lib/tools/youtube-outreach/unsubscribe';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -74,6 +75,15 @@ describe('outreach safety', () => {
     expect(verifyUnsubscribeToken('lead-456', token)).toBe(false);
     expect(buildUnsubscribeUrl('lead-123')).toContain('https://leads.example.com/unsubscribe?');
     expect(buildOneClickUnsubscribeUrl('lead-123')).toContain('https://leads.example.com/api/unsubscribe?');
+  });
+
+  it('creates namespace-isolated YouTube creator unsubscribe links', () => {
+    vi.stubEnv('UNSUBSCRIBE_SECRET', 'youtube-unsubscribe-secret');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://automations.example.com');
+    const url = new URL(buildYouTubeUnsubscribeUrl('creator-123'));
+    expect(url.pathname).toBe('/api/tools/youtube-outreach/unsubscribe');
+    expect(verifyYouTubeUnsubscribe('creator-123', url.searchParams.get('token') || '')).toBe(true);
+    expect(verifyYouTubeUnsubscribe('creator-456', url.searchParams.get('token') || '')).toBe(false);
   });
 
   it('deduplicates scraped emails and excludes common false positives', () => {

@@ -16,7 +16,7 @@ Canonical UI: `/dashboard/lead-recovery`
 
 A separate creator-acquisition module for established English-speaking channels that publish active long-form content and underuse Shorts. It has dedicated creator, campaign, queue, event, and note models. It does not use the Lead Recovery `leads` table.
 
-This release provides the module dashboard, creator pipeline, paused campaign configuration, and database foundation. It does **not** implement creator discovery, vidIQ access, scheduled automation, or live email sending.
+The module includes scheduled YouTube Data API discovery, deterministic qualification from channel statistics and recent upload durations, public channel-description email provenance, Hunter mailbox verification, a dedicated guarded queue, SMTP delivery, provider-event tracking, reply-stop behavior, and creator-specific unsubscribe handling. Campaigns remain paused by default and require an exact authenticated activation confirmation.
 
 Canonical UI: `/dashboard/youtube-outreach`
 
@@ -83,7 +83,7 @@ Migration 010 inserts no records and activates no campaign. The YouTube UI degra
 - Supabase organization membership scopes browser reads and writes through RLS.
 - Provider credentials are organization-owned and configured at `/dashboard/integrations`.
 - Lead Recovery keeps its suppression, unsubscribe, bounce, reply-stop, daily-limit, sender, postal-address, and duplicate protections.
-- YouTube creator emails require recorded public provenance, and its future queue defaults to `paused`.
+- YouTube creator emails require recorded public provenance and Hunter verification. Its queue defaults to `paused`, uses the shared suppression and sender controls, and only becomes eligible after deliberate campaign activation.
 
 ## Read-only MCP control layer
 
@@ -146,6 +146,12 @@ Newly selected lead addresses are checked with Hunter's email verifier before in
 4. Run `npm run dev`.
 
 Production scheduling remains in GitHub Actions. Do not duplicate those schedules in Vercel.
+
+### YouTube Creator Outreach automation
+
+Enable YouTube Data API v3 in a Google Cloud project and configure the server-only `YOUTUBE_API_KEY` in Vercel Production and Preview. The daily discovery worker rotates through campaign niches, inspects channel statistics and the latest eight uploads, and only stores an email when it appears publicly in the channel description. Hunter must verify that mailbox as `valid` before the creator can be qualified or queued.
+
+Saving a campaign always stores it paused. Activation requires typing `ACTIVATE YOUTUBE OUTREACH` in the authenticated dashboard and is refused unless the YouTube key, Hunter verifier, workspace SMTP credentials, matching sender identity, postal address, and non-zero daily limits are ready. The five-minute sender enforces campaign daily limits, suppression, unsubscribe, reply-stop, and provider-event handling.
 
 ## Validation
 

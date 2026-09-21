@@ -56,14 +56,18 @@ jobs:
             call_cron "/api/cron/auto-push"
             call_cron "/api/cron/process-outreach"
             call_cron "/api/cron/sync-replies"
+            call_cron "/api/cron/youtube-discover"
+            call_cron "/api/cron/youtube-outreach"
           elif [[ "$EVENT_SCHEDULE" == "0 0 * * *" ]]; then
             call_cron "/api/cron/auto-scrape"
+            call_cron "/api/cron/youtube-discover"
           elif [[ "$EVENT_SCHEDULE" == "*/10 * * * *" ]]; then
             call_cron "/api/cron/process-leads"
             call_cron "/api/cron/auto-push"
           elif [[ "$EVENT_SCHEDULE" == "*/5 * * * *" ]]; then
             call_cron "/api/cron/process-outreach"
             call_cron "/api/cron/sync-replies"
+            call_cron "/api/cron/youtube-outreach"
           else
             echo "Unsupported scheduler event: ${EVENT_NAME} / ${EVENT_SCHEDULE}"
             exit 1
