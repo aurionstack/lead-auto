@@ -15,20 +15,43 @@ function selectedNiche(campaign: StoredCampaign) {
   return niches[day % niches.length];
 }
 
+const DISCOVERY_POOL_MULTIPLIER = 2;
+
+function qualificationFailures(candidate: {
+  subscriberCount: number | null;
+  country: string | null;
+  language: string | null;
+  longFormScore: number;
+  opportunityScore: number;
+}, campaign: StoredCampaign, hasVerifiedEmail: boolean) {
+  const failures: string[] = [];
+  if (candidate.subscriberCount === null || candidate.subscriberCount < campaign.subscriber_min || candidate.subscriberCount > campaign.subscriber_max) failures.push('subscriber range');
+  if (candidate.country && !campaign.countries.some((country) => country.toLowerCase() === candidate.country?.toLowerCase())) failures.push('country');
+  if (candidate.language && !campaign.languages.some((language) => language.toLowerCase() === candidate.language?.toLowerCase())) failures.push('language');
+  if (campaign.require_long_form && candidate.longFormScore < 60) failures.push('long-form activity');
+  if (candidate.opportunityScore < 70) failures.push('opportunity score');
+  if (!hasVerifiedEmail) failures.push('verified public email');
+  return failures;
+}
+
 export async function runYouTubeDiscovery() {
   const { data: campaigns, error } = await supabaseAdmin
     .from('youtube_campaigns')
     .select('*')
     .eq('status', 'active');
   if (error) throw error;
-  if (!campaigns?.length) return { activeCampaigns: 0, discovered: 0, qualified: 0, queued: 0 };
+  if (!campaigns?.length) return { activeCampaigns: 0, discovered: 0, qualified: 0, queued: 0, rejectedByGate: {} };
 
   let discovered = 0;
   let qualified = 0;
   let queued = 0;
+  const rejectedByGate: Record<string, number> = {};
   for (const campaign of campaigns as StoredCampaign[]) {
     const niche = selectedNiche(campaign);
-    const candidates = await discoverYouTubeCreators(`${niche} creator`, campaign.daily_discovery_target);
+    // Search a wider pool because public business-email availability is sparse.
+    // The YouTube API caps one channel search at 50 results.
+    const poolSize = Math.min(50, Math.max(campaign.daily_discovery_target, campaign.daily_discovery_target * DISCOVERY_POOL_MULTIPLIER));
+    const candidates = await discoverYouTubeCreators(niche, poolSize);
     const { data: settings } = await supabaseAdmin
       .from('organization_settings')
       .select('hunter_api_key')
@@ -44,10 +67,6 @@ export async function runYouTubeDiscovery() {
         .eq('organization_id', campaign.organization_id)
         .eq('channel_id', candidate.channelId)
         .maybeSingle();
-      const inSubscriberRange = candidate.subscriberCount !== null && candidate.subscriberCount >= campaign.subscriber_min && candidate.subscriberCount <= campaign.subscriber_max;
-      const inCountry = !candidate.country || campaign.countries.some((country) => country.toLowerCase() === candidate.country?.toLowerCase());
-      const inLanguage = !candidate.language || campaign.languages.some((language) => language.toLowerCase() === candidate.language?.toLowerCase());
-      const longFormReady = !campaign.require_long_form || candidate.longFormScore >= 60;
       let verifiedEmail: string | null = null;
       let emailSource = candidate.emailSource;
       if (candidate.businessEmail && hunterKey) {
@@ -57,8 +76,10 @@ export async function runYouTubeDiscovery() {
           emailSource = `${candidate.emailSource}; Hunter verified ${verification.verifiedAt}`;
         }
       }
-      const isQualified = inSubscriberRange && inCountry && inLanguage && longFormReady && candidate.opportunityScore >= 70 && Boolean(verifiedEmail);
+      const failures = qualificationFailures(candidate, campaign, Boolean(verifiedEmail));
+      const isQualified = failures.length === 0;
       if (isQualified) qualified += 1;
+      else for (const failure of failures) rejectedByGate[failure] = (rejectedByGate[failure] || 0) + 1;
       const advancedStatuses = ['contacted', 'replied', 'positive_reply', 'sample_requested', 'sample_sent', 'client', 'unsubscribed'];
       const preservedStatuses = ['qualified', ...advancedStatuses];
       const lifecycleStatus = existingCreator && preservedStatuses.includes(existingCreator.status)
@@ -83,7 +104,9 @@ export async function runYouTubeDiscovery() {
           long_form_score: candidate.longFormScore,
           shorts_usage_score: candidate.shortsUsageScore,
           opportunity_score: candidate.opportunityScore,
-          qualification_reason: candidate.qualificationReason,
+          qualification_reason: isQualified
+            ? `${candidate.qualificationReason} All campaign gates passed.`
+            : `${candidate.qualificationReason} Failed gates: ${failures.join(', ')}.`,
           status: lifecycleStatus,
           latest_video_title: candidate.latestVideoTitle,
           latest_video_url: candidate.latestVideoUrl,
@@ -124,7 +147,7 @@ export async function runYouTubeDiscovery() {
       }
     }
   }
-  return { activeCampaigns: campaigns.length, discovered, qualified, queued };
+  return { activeCampaigns: campaigns.length, discovered, qualified, queued, rejectedByGate };
 }
 
 export async function processYouTubeOutreach() {
