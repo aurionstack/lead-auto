@@ -2,7 +2,7 @@ type WhatsAppSendResult = { messages?: Array<{ id?: string }>; error?: { message
 
 function config() {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const version = process.env.WHATSAPP_GRAPH_API_VERSION || 'v25.0';
+  const version = process.env.WHATSAPP_GRAPH_API_VERSION || 'v26.0';
   if (!token) throw new Error('WHATSAPP_ACCESS_TOKEN is not configured');
   return { token, version };
 }
