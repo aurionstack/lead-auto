@@ -34,11 +34,13 @@ function qualificationFailures(candidate: {
   return failures;
 }
 
-export async function runYouTubeDiscovery() {
-  const { data: campaigns, error } = await supabaseAdmin
+export async function runYouTubeDiscovery(organizationId?: string) {
+  let campaignQuery = supabaseAdmin
     .from('youtube_campaigns')
     .select('*')
     .eq('status', 'active');
+  if (organizationId) campaignQuery = campaignQuery.eq('organization_id', organizationId);
+  const { data: campaigns, error } = await campaignQuery;
   if (error) throw error;
   if (!campaigns?.length) return { activeCampaigns: 0, discovered: 0, qualified: 0, queued: 0, rejectedByGate: {} };
 
@@ -150,8 +152,10 @@ export async function runYouTubeDiscovery() {
   return { activeCampaigns: campaigns.length, discovered, qualified, queued, rejectedByGate };
 }
 
-export async function processYouTubeOutreach() {
-  const { data: campaigns, error } = await supabaseAdmin.from('youtube_campaigns').select('*').eq('status', 'active');
+export async function processYouTubeOutreach(organizationId?: string) {
+  let campaignQuery = supabaseAdmin.from('youtube_campaigns').select('*').eq('status', 'active');
+  if (organizationId) campaignQuery = campaignQuery.eq('organization_id', organizationId);
+  const { data: campaigns, error } = await campaignQuery;
   if (error) throw error;
   let processed = 0;
   for (const campaign of (campaigns || []) as StoredCampaign[]) {

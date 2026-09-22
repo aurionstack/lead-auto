@@ -75,6 +75,7 @@ Apply migrations in numerical order. They are never applied automatically by the
 - `010_youtube_outreach_foundation.sql` adds `youtube_creators`, `youtube_campaigns`, `youtube_outreach_queue`, `youtube_outreach_events`, and `youtube_creator_notes` with tenant RLS and paused defaults.
 - `011_mcp_observability.sql` adds metadata-only MCP audit logs and distributed request limiting.
 - `012_revqr_whatsapp_sales_engine.sql` adds tenant-isolated RevQR campaigns, consent-aware prospects, conversations, messages, jobs, and audit events. It creates no campaign and sends nothing.
+- `013_automation_studio.sql` adds tenant-isolated workflow definitions, ordered typed steps, executions, and per-step audit history. Workflows default to draft.
 
 Migration 010 inserts no records and activates no campaign. The YouTube UI degrades to safe preview defaults until it is applied.
 
@@ -161,6 +162,12 @@ Apply migration 012, then configure `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRE
 Create the paused campaign at `/dashboard/revqr-whatsapp/campaigns`, including the Meta phone-number ID, demo URL, payment URL, daily limit, and an approved follow-up template. One deliberate activation enables unattended processing after that point. Incoming WhatsApp messages record inbound consent, open the 24-hour customer-service window, classify intent, and queue a guarded response. STOP/not-interested language revokes consent and cancels pending work immediately. Free-form messages are blocked outside the service window; the single delayed follow-up requires an approved Meta template. Delivery/read/failure webhooks update message state. When a customer supplies both a logo image and Google Review URL, the worker securely downloads the logo from Meta and calls the configured RevQR onboarding webhook as multipart form data. That endpoint must return `customer_url`, `qr_asset_url`, and `standee_asset_url`.
 
 Discovered phone numbers are never treated as consent and cannot enter this sender. Lead sourcing can be added independently, but outbound initiation must retain verifiable permission and use an approved template under current WhatsApp Business rules.
+
+### Automation Studio
+
+Apply migration 013 and open `/dashboard/automation-studio`. Users can build manual, interval, or daily workflows with ordered steps, conditional gates, context transforms, public HTTPS webhooks, Lead Recovery snapshots, and guarded YouTube/RevQR actions. Saving always returns a workflow to draft. Activation requires an exact confirmation phrase; workflows containing outreach actions require the stronger `ACTIVATE OUTREACH AUTOMATION` confirmation. Scheduled execution runs every five minutes, enforces per-workflow daily run limits, scopes every action to the workflow organization, retries steps, supports continue-on-error, and records run plus step output without exposing arbitrary SQL or unrestricted credentials.
+
+Public webhook steps accept HTTPS only, reject credentials in URLs, custom headers, redirects, nonstandard ports, localhost, and private/reserved DNS results. Authenticated connector credentials should be added later through dedicated typed connectors rather than embedded in workflow JSON.
 
 ## Validation
 

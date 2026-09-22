@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseEmailProviderEvents } from '../lib/email/webhook';
 import { buildYouTubeUnsubscribeUrl, verifyYouTubeUnsubscribe } from '../lib/tools/youtube-outreach/unsubscribe';
 import { classifyRevQrIntent } from '../lib/tools/revqr-whatsapp/automation';
+import { automationActionCatalog, validateActionConfig } from '../lib/tools/automation-studio/catalog';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -120,10 +121,11 @@ describe('active campaign targeting', () => {
 
 describe('automation hub architecture', () => {
   it('registers independent automation products', () => {
-    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach', 'revqr-whatsapp']);
+    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach', 'revqr-whatsapp', 'automation-studio']);
     expect(getAutomationTool('lead-recovery').route).toBe('/dashboard/lead-recovery');
     expect(getAutomationTool('youtube-outreach').mcpNamespace).toBe('youtube');
     expect(getAutomationTool('revqr-whatsapp').mcpNamespace).toBe('revqr');
+    expect(getAutomationTool('automation-studio').mcpNamespace).toBe('automation_studio');
   });
 
   it('classifies RevQR sales replies and always prioritizes opt-out', () => {
@@ -131,6 +133,14 @@ describe('automation hub architecture', () => {
     expect(classifyRevQrIntent('How much does it cost?')).toBe('pricing');
     expect(classifyRevQrIntent('Send the payment link')).toBe('payment');
     expect(classifyRevQrIntent('Not interested, stop messaging')).toBe('stop');
+  });
+
+  it('keeps Automation Studio actions typed and rejects unsafe webhook configuration', () => {
+    expect(automationActionCatalog.some((action) => action.type === 'core.public_webhook')).toBe(true);
+    expect(automationActionCatalog.filter((action) => action.risk === 'outreach').length).toBeGreaterThan(0);
+    expect(validateActionConfig('core.public_webhook', { url: 'https://example.com/hook' })).toBe(true);
+    expect(validateActionConfig('core.public_webhook', { url: 'http://localhost/hook' })).toBe(false);
+    expect(validateActionConfig('core.public_webhook', { url: 'https://example.com/hook', headers: { authorization: 'secret' } })).toBe(false);
   });
 
   it('keeps the YouTube campaign and high-risk MCP actions disabled by default', () => {

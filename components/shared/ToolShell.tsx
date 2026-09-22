@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Menu, MessageCircle, Radar, Video as Youtube, X } from 'lucide-react';
+import { ArrowLeft, Menu, MessageCircle, Radar, Video as Youtube, Workflow, X } from 'lucide-react';
 import { useState } from 'react';
 import BrandMark from './BrandMark';
 import LogoutButton from './LogoutButton';
@@ -15,7 +15,7 @@ export interface ToolNavItem {
 interface ToolShellProps {
   title: string;
   description: string;
-  icon: 'radar' | 'youtube' | 'message';
+  icon: 'radar' | 'youtube' | 'message' | 'workflow';
   status: string;
   navigation: ToolNavItem[];
   children: React.ReactNode;
@@ -24,7 +24,7 @@ interface ToolShellProps {
 export default function ToolShell({ title, description, icon, status, navigation, children }: ToolShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const ToolIcon = icon === 'youtube' ? Youtube : icon === 'message' ? MessageCircle : Radar;
+  const ToolIcon = icon === 'youtube' ? Youtube : icon === 'message' ? MessageCircle : icon === 'workflow' ? Workflow : Radar;
 
   const isActive = (href: string) => pathname === href || (href !== navigation[0]?.href && pathname.startsWith(`${href}/`));
 
@@ -43,7 +43,7 @@ export default function ToolShell({ title, description, icon, status, navigation
 
           <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
             <div className="flex items-center gap-3">
-              <span className={`grid size-10 place-items-center rounded-xl ${icon === 'youtube' ? 'bg-rose-400/10 text-rose-300' : icon === 'message' ? 'bg-emerald-400/10 text-emerald-300' : 'bg-indigo-400/10 text-indigo-300'}`}><ToolIcon className="size-5" /></span>
+              <span className={`grid size-10 place-items-center rounded-xl ${icon === 'youtube' ? 'bg-rose-400/10 text-rose-300' : icon === 'message' ? 'bg-emerald-400/10 text-emerald-300' : icon === 'workflow' ? 'bg-violet-400/10 text-violet-300' : 'bg-indigo-400/10 text-indigo-300'}`}><ToolIcon className="size-5" /></span>
               <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{title}</p><p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">{status}</p></div>
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-500">{description}</p>

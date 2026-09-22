@@ -23,14 +23,16 @@ function responseFor(intent: RevQrIntent, campaign: RevQrCampaign, businessName?
   return { body: `Hi ${name}! RevQR helps local businesses collect more genuine Google reviews using a branded tabletop QR stand. Here is the quick demo: ${campaign.demo_url}\n\nReply PRICE for the full offer or STOP at any time.`, status: 'demo_sent' } as const;
 }
 
-export async function processRevQrJobs(batchSize = 10) {
-  const { data: jobs, error } = await supabaseAdmin
+export async function processRevQrJobs(batchSize = 10, organizationId?: string) {
+  let jobsQuery = supabaseAdmin
     .from('revqr_jobs')
     .select('*, revqr_campaigns(*), revqr_prospects(business_name,phone_e164,consent_status,status), revqr_conversations(service_window_expires_at,last_inbound_at)')
     .eq('status', 'pending')
     .lte('scheduled_for', new Date().toISOString())
     .order('scheduled_for')
     .limit(Math.max(1, Math.min(batchSize, 25)));
+  if (organizationId) jobsQuery = jobsQuery.eq('organization_id', organizationId);
+  const { data: jobs, error } = await jobsQuery;
   if (error) throw error;
 
   let sent = 0;

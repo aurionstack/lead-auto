@@ -1,4 +1,4 @@
-export type AutomationToolId = 'lead-recovery' | 'youtube-outreach' | 'revqr-whatsapp';
+export type AutomationToolId = 'lead-recovery' | 'youtube-outreach' | 'revqr-whatsapp' | 'automation-studio';
 
 export type AutomationToolStatus = 'operational' | 'foundation' | 'paused';
 
@@ -10,9 +10,9 @@ export interface AutomationTool {
   route: string;
   status: AutomationToolStatus;
   statusLabel: string;
-  icon: 'radar' | 'youtube' | 'message';
-  accent: 'indigo' | 'rose' | 'emerald';
-  mcpNamespace: 'lead_recovery' | 'youtube' | 'revqr';
+  icon: 'radar' | 'youtube' | 'message' | 'workflow';
+  accent: 'indigo' | 'rose' | 'emerald' | 'violet';
+  mcpNamespace: 'lead_recovery' | 'youtube' | 'revqr' | 'automation_studio';
 }
 
 export const automationTools: readonly AutomationTool[] = [
@@ -51,6 +51,18 @@ export const automationTools: readonly AutomationTool[] = [
     icon: 'message',
     accent: 'emerald',
     mcpNamespace: 'revqr',
+  },
+  {
+    id: 'automation-studio',
+    name: 'Automation Studio',
+    shortName: 'Studio',
+    description: 'Compose tenant-safe workflows from schedules, conditions, transforms, webhooks, and guarded product actions.',
+    route: '/dashboard/automation-studio',
+    status: 'operational',
+    statusLabel: 'Builder ready',
+    icon: 'workflow',
+    accent: 'violet',
+    mcpNamespace: 'automation_studio',
   },
 ] as const;
 

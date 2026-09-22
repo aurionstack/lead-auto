@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight, MessageCircle, Plus, Radar, ShieldCheck, Video as Youtube } from 'lucide-react';
+import { ArrowUpRight, MessageCircle, Plus, Radar, ShieldCheck, Video as Youtube, Workflow } from 'lucide-react';
 import { automationTools, type AutomationTool } from '@/lib/tools/registry';
 import BrandMark from '@/components/shared/BrandMark';
 import LogoutButton from '@/components/shared/LogoutButton';
@@ -43,8 +43,8 @@ export default function AutomationHub({ summaries }: { summaries: Record<Automat
 }
 
 function AutomationToolCard({ tool, summary }: { tool: AutomationTool; summary: HubSummary }) {
-  const Icon = tool.icon === 'youtube' ? Youtube : tool.icon === 'message' ? MessageCircle : Radar;
-  const accent = tool.accent === 'rose' ? 'bg-rose-400/10 text-rose-300 border-rose-300/15' : tool.accent === 'emerald' ? 'bg-emerald-400/10 text-emerald-300 border-emerald-300/15' : 'bg-indigo-400/10 text-indigo-300 border-indigo-300/15';
+  const Icon = tool.icon === 'youtube' ? Youtube : tool.icon === 'message' ? MessageCircle : tool.icon === 'workflow' ? Workflow : Radar;
+  const accent = tool.accent === 'rose' ? 'bg-rose-400/10 text-rose-300 border-rose-300/15' : tool.accent === 'emerald' ? 'bg-emerald-400/10 text-emerald-300 border-emerald-300/15' : tool.accent === 'violet' ? 'bg-violet-400/10 text-violet-300 border-violet-300/15' : 'bg-indigo-400/10 text-indigo-300 border-indigo-300/15';
   const status = summary.active ? 'Active' : tool.status === 'foundation' ? 'Paused · setup' : 'Paused';
   return (
     <Link href={tool.route} className="group flex min-h-72 flex-col justify-between rounded-3xl border border-white/[0.07] bg-[#10131a] p-6 shadow-[0_20px_70px_rgba(0,0,0,.18)] hover:-translate-y-0.5 hover:border-white/[0.14] sm:p-7">
@@ -54,7 +54,7 @@ function AutomationToolCard({ tool, summary }: { tool: AutomationTool; summary: 
       </div>
       <div className="mt-8"><h2 className="text-xl font-semibold text-white">{tool.name}</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-500">{tool.description}</p></div>
       <div className="mt-8 flex items-end justify-between border-t border-white/[0.06] pt-5">
-        <div className="flex gap-8"><ToolMetric label={tool.id === 'youtube-outreach' ? 'Creators' : 'Prospects'} value={summary.prospects} /><ToolMetric label="Replies" value={summary.replies} /></div>
+        <div className="flex gap-8"><ToolMetric label={tool.id === 'youtube-outreach' ? 'Creators' : tool.id === 'automation-studio' ? 'Workflows' : 'Prospects'} value={summary.prospects} /><ToolMetric label={tool.id === 'automation-studio' ? 'Successful runs' : 'Replies'} value={summary.replies} /></div>
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 group-hover:text-indigo-200">Open tool <ArrowUpRight className="size-3.5" /></span>
       </div>
     </Link>
