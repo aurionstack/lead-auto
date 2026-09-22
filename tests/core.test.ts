@@ -14,6 +14,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseEmailProviderEvents } from '../lib/email/webhook';
 import { buildYouTubeUnsubscribeUrl, verifyYouTubeUnsubscribe } from '../lib/tools/youtube-outreach/unsubscribe';
+import { classifyRevQrIntent } from '../lib/tools/revqr-whatsapp/automation';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -118,10 +119,18 @@ describe('active campaign targeting', () => {
 });
 
 describe('automation hub architecture', () => {
-  it('registers independent Lead Recovery and YouTube tools', () => {
-    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach']);
+  it('registers independent automation products', () => {
+    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach', 'revqr-whatsapp']);
     expect(getAutomationTool('lead-recovery').route).toBe('/dashboard/lead-recovery');
     expect(getAutomationTool('youtube-outreach').mcpNamespace).toBe('youtube');
+    expect(getAutomationTool('revqr-whatsapp').mcpNamespace).toBe('revqr');
+  });
+
+  it('classifies RevQR sales replies and always prioritizes opt-out', () => {
+    expect(classifyRevQrIntent('Yes, please send the demo')).toBe('demo');
+    expect(classifyRevQrIntent('How much does it cost?')).toBe('pricing');
+    expect(classifyRevQrIntent('Send the payment link')).toBe('payment');
+    expect(classifyRevQrIntent('Not interested, stop messaging')).toBe('stop');
   });
 
   it('keeps the YouTube campaign and high-risk MCP actions disabled by default', () => {

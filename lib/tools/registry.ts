@@ -1,4 +1,4 @@
-export type AutomationToolId = 'lead-recovery' | 'youtube-outreach';
+export type AutomationToolId = 'lead-recovery' | 'youtube-outreach' | 'revqr-whatsapp';
 
 export type AutomationToolStatus = 'operational' | 'foundation' | 'paused';
 
@@ -10,9 +10,9 @@ export interface AutomationTool {
   route: string;
   status: AutomationToolStatus;
   statusLabel: string;
-  icon: 'radar' | 'youtube';
-  accent: 'indigo' | 'rose';
-  mcpNamespace: 'lead_recovery' | 'youtube';
+  icon: 'radar' | 'youtube' | 'message';
+  accent: 'indigo' | 'rose' | 'emerald';
+  mcpNamespace: 'lead_recovery' | 'youtube' | 'revqr';
 }
 
 export const automationTools: readonly AutomationTool[] = [
@@ -39,6 +39,18 @@ export const automationTools: readonly AutomationTool[] = [
     icon: 'youtube',
     accent: 'rose',
     mcpNamespace: 'youtube',
+  },
+  {
+    id: 'revqr-whatsapp',
+    name: 'RevQR WhatsApp Sales Engine',
+    shortName: 'RevQR Sales',
+    description: 'Turn opted-in WhatsApp conversations into demos, payments, and automated RevQR onboarding.',
+    route: '/dashboard/revqr-whatsapp',
+    status: 'foundation',
+    statusLabel: 'Setup required',
+    icon: 'message',
+    accent: 'emerald',
+    mcpNamespace: 'revqr',
   },
 ] as const;
 

@@ -58,6 +58,7 @@ jobs:
             call_cron "/api/cron/sync-replies"
             call_cron "/api/cron/youtube-discover"
             call_cron "/api/cron/youtube-outreach"
+            call_cron "/api/cron/revqr-whatsapp"
           elif [[ "$EVENT_SCHEDULE" == "0 0 * * *" ]]; then
             call_cron "/api/cron/auto-scrape"
             call_cron "/api/cron/youtube-discover"
@@ -68,6 +69,7 @@ jobs:
             call_cron "/api/cron/process-outreach"
             call_cron "/api/cron/sync-replies"
             call_cron "/api/cron/youtube-outreach"
+            call_cron "/api/cron/revqr-whatsapp"
           else
             echo "Unsupported scheduler event: ${EVENT_NAME} / ${EVENT_SCHEDULE}"
             exit 1

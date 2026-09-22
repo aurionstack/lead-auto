@@ -74,6 +74,7 @@ Apply migrations in numerical order. They are never applied automatically by the
 - `009_add_outreach_postal_address.sql` adds the CAN-SPAM sender address required by the shared email provider.
 - `010_youtube_outreach_foundation.sql` adds `youtube_creators`, `youtube_campaigns`, `youtube_outreach_queue`, `youtube_outreach_events`, and `youtube_creator_notes` with tenant RLS and paused defaults.
 - `011_mcp_observability.sql` adds metadata-only MCP audit logs and distributed request limiting.
+- `012_revqr_whatsapp_sales_engine.sql` adds tenant-isolated RevQR campaigns, consent-aware prospects, conversations, messages, jobs, and audit events. It creates no campaign and sends nothing.
 
 Migration 010 inserts no records and activates no campaign. The YouTube UI degrades to safe preview defaults until it is applied.
 
@@ -152,6 +153,14 @@ Production scheduling remains in GitHub Actions. Do not duplicate those schedule
 Enable YouTube Data API v3 in a Google Cloud project and configure the server-only `YOUTUBE_API_KEY` in Vercel Production and Preview. The daily discovery worker rotates through campaign niches, inspects channel statistics and the latest eight uploads, and only stores an email when it appears publicly in the channel description. Hunter must verify that mailbox as `valid` before the creator can be qualified or queued.
 
 Saving a campaign always stores it paused. Activation requires typing `ACTIVATE YOUTUBE OUTREACH` in the authenticated dashboard and is refused unless the YouTube key, Hunter verifier, workspace SMTP credentials, matching sender identity, postal address, and non-zero daily limits are ready. The five-minute sender enforces campaign daily limits, suppression, unsubscribe, reply-stop, and provider-event handling.
+
+### RevQR WhatsApp Sales Engine
+
+Apply migration 012, then configure `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, and (optionally) `WHATSAPP_GRAPH_API_VERSION`. Configure `REVQR_ONBOARDING_WEBHOOK_URL` and `REVQR_ONBOARDING_WEBHOOK_SECRET` for the RevQR product endpoint that provisions the customer account, QR asset, and stand artwork. In Meta, use `https://<production-domain>/api/webhooks/whatsapp` as the webhook callback, enter the same verification token, and subscribe the WhatsApp phone number to the `messages` field.
+
+Create the paused campaign at `/dashboard/revqr-whatsapp/campaigns`, including the Meta phone-number ID, demo URL, payment URL, daily limit, and an approved follow-up template. One deliberate activation enables unattended processing after that point. Incoming WhatsApp messages record inbound consent, open the 24-hour customer-service window, classify intent, and queue a guarded response. STOP/not-interested language revokes consent and cancels pending work immediately. Free-form messages are blocked outside the service window; the single delayed follow-up requires an approved Meta template. Delivery/read/failure webhooks update message state. When a customer supplies both a logo image and Google Review URL, the worker securely downloads the logo from Meta and calls the configured RevQR onboarding webhook as multipart form data. That endpoint must return `customer_url`, `qr_asset_url`, and `standee_asset_url`.
+
+Discovered phone numbers are never treated as consent and cannot enter this sender. Lead sourcing can be added independently, but outbound initiation must retain verifiable permission and use an approved template under current WhatsApp Business rules.
 
 ## Validation
 

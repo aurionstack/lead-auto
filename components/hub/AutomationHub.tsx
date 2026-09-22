@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight, Plus, Radar, ShieldCheck, Video as Youtube } from 'lucide-react';
+import { ArrowUpRight, MessageCircle, Plus, Radar, ShieldCheck, Video as Youtube } from 'lucide-react';
 import { automationTools, type AutomationTool } from '@/lib/tools/registry';
 import BrandMark from '@/components/shared/BrandMark';
 import LogoutButton from '@/components/shared/LogoutButton';
@@ -43,9 +43,9 @@ export default function AutomationHub({ summaries }: { summaries: Record<Automat
 }
 
 function AutomationToolCard({ tool, summary }: { tool: AutomationTool; summary: HubSummary }) {
-  const Icon = tool.icon === 'youtube' ? Youtube : Radar;
-  const accent = tool.accent === 'rose' ? 'bg-rose-400/10 text-rose-300 border-rose-300/15' : 'bg-indigo-400/10 text-indigo-300 border-indigo-300/15';
-  const status = summary.active ? 'Active' : tool.id === 'youtube-outreach' ? 'Paused · setup' : 'Paused';
+  const Icon = tool.icon === 'youtube' ? Youtube : tool.icon === 'message' ? MessageCircle : Radar;
+  const accent = tool.accent === 'rose' ? 'bg-rose-400/10 text-rose-300 border-rose-300/15' : tool.accent === 'emerald' ? 'bg-emerald-400/10 text-emerald-300 border-emerald-300/15' : 'bg-indigo-400/10 text-indigo-300 border-indigo-300/15';
+  const status = summary.active ? 'Active' : tool.status === 'foundation' ? 'Paused · setup' : 'Paused';
   return (
     <Link href={tool.route} className="group flex min-h-72 flex-col justify-between rounded-3xl border border-white/[0.07] bg-[#10131a] p-6 shadow-[0_20px_70px_rgba(0,0,0,.18)] hover:-translate-y-0.5 hover:border-white/[0.14] sm:p-7">
       <div className="flex items-start justify-between gap-4">
