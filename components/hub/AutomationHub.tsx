@@ -3,6 +3,7 @@ import { ArrowUpRight, MessageCircle, Plus, Radar, ShieldCheck, Video as Youtube
 import { automationTools, type AutomationTool } from '@/lib/tools/registry';
 import BrandMark from '@/components/shared/BrandMark';
 import LogoutButton from '@/components/shared/LogoutButton';
+import type { StudioWorkflow } from '@/lib/tools/automation-studio/service';
 
 export interface HubSummary {
   prospects: number;
@@ -11,7 +12,7 @@ export interface HubSummary {
   databaseReady?: boolean;
 }
 
-export default function AutomationHub({ summaries }: { summaries: Record<AutomationTool['id'], HubSummary> }) {
+export default function AutomationHub({ summaries, workflows = [] }: { summaries: Record<AutomationTool['id'], HubSummary>; workflows?: StudioWorkflow[] }) {
   return (
     <div className="min-h-screen bg-[#080a10] text-slate-100">
       <header className="border-b border-white/[0.06] bg-[#0b0e14]/90 backdrop-blur-xl">
@@ -25,12 +26,13 @@ export default function AutomationHub({ summaries }: { summaries: Record<Automat
         </section>
 
         <section className="mt-10 grid gap-5 lg:grid-cols-2" aria-label="Automation tools">
-          {automationTools.map((tool) => <AutomationToolCard key={tool.id} tool={tool} summary={summaries[tool.id]} />)}
-          <div className="flex min-h-72 flex-col justify-between rounded-3xl border border-dashed border-white/[0.10] bg-white/[0.015] p-6 sm:p-7">
+          {automationTools.filter((tool) => tool.id !== 'automation-studio').map((tool) => <AutomationToolCard key={tool.id} tool={tool} summary={summaries[tool.id]} />)}
+          {workflows.filter((workflow) => workflow.status !== 'archived').map((workflow) => <Link key={workflow.id} href="/dashboard/automations/new" className="flex min-h-72 flex-col justify-between rounded-3xl border border-white/[0.07] bg-[#10131a] p-6 hover:border-violet-300/30 sm:p-7"><div className="flex items-start justify-between"><Workflow className="size-6 text-violet-300" /><span className="text-xs capitalize text-slate-400">{workflow.status}</span></div><div><h2 className="text-xl font-semibold text-white">{workflow.name}</h2><p className="mt-2 text-sm text-slate-500">{workflow.description || 'Custom automation'}</p></div><span className="text-xs font-semibold text-violet-300">Manage automation →</span></Link>)}
+          <Link href="/dashboard/automations/new" aria-label="Create a new automation" className="group flex min-h-72 flex-col justify-between rounded-3xl border border-dashed border-white/[0.10] bg-white/[0.015] p-6 hover:border-violet-300/40 hover:bg-violet-400/[0.04] focus-visible:outline-2 focus-visible:outline-violet-300 sm:p-7">
             <span className="grid size-12 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.03] text-slate-500"><Plus className="size-5" /></span>
-            <div><p className="text-lg font-semibold text-slate-300">New automation</p><p className="mt-2 max-w-sm text-sm leading-6 text-slate-600">New products plug into the typed registry and implement their own routes, services, and data model.</p></div>
-            <p className="text-xs font-medium text-slate-600">Registry-driven architecture</p>
-          </div>
+            <div><p className="text-lg font-semibold text-slate-300">New automation</p><p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">Create your own automation. Choose when it runs, add actions, and customize it for your business.</p></div>
+            <p className="inline-flex items-center gap-2 text-xs font-semibold text-violet-300">Create automation <ArrowUpRight className="size-3.5" /></p>
+          </Link>
         </section>
 
         <footer className="mt-10 flex flex-col gap-3 border-t border-white/[0.06] pt-6 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
