@@ -1,4 +1,4 @@
-export type AutomationToolId = 'lead-recovery' | 'youtube-outreach' | 'revqr-whatsapp' | 'automation-studio';
+export type AutomationToolId = 'lead-recovery' | 'youtube-outreach' | 'revqr-whatsapp' | 'social-monitor' | 'automation-studio';
 
 export type AutomationToolStatus = 'operational' | 'foundation' | 'paused';
 
@@ -12,7 +12,7 @@ export interface AutomationTool {
   statusLabel: string;
   icon: 'radar' | 'youtube' | 'message' | 'workflow';
   accent: 'indigo' | 'rose' | 'emerald' | 'violet';
-  mcpNamespace: 'lead_recovery' | 'youtube' | 'revqr' | 'automation_studio';
+  mcpNamespace: 'lead_recovery' | 'youtube' | 'revqr' | 'social_monitor' | 'automation_studio';
 }
 
 export const automationTools: readonly AutomationTool[] = [
@@ -51,6 +51,18 @@ export const automationTools: readonly AutomationTool[] = [
     icon: 'message',
     accent: 'emerald',
     mcpNamespace: 'revqr',
+  },
+  {
+    id: 'social-monitor',
+    name: 'Reddit & X Lead Monitor',
+    shortName: 'Social Monitor',
+    description: 'Find public buyer requests for AurionStack services, qualify them, and alert your team with a draft reply.',
+    route: '/dashboard/social-monitor',
+    status: 'foundation',
+    statusLabel: 'Setup required',
+    icon: 'radar',
+    accent: 'violet',
+    mcpNamespace: 'social_monitor',
   },
   {
     id: 'automation-studio',

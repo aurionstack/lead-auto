@@ -75,13 +75,14 @@ export function createAurionStackMcpServer(context: McpRequestContext) {
       statuses: z.array(z.enum(leadStatuses)).max(9).optional(),
       minScore: z.number().int().min(0).max(100).optional(),
       limit: z.number().int().min(1).max(100).default(25),
+      offset: z.number().int().min(0).max(5000).default(0),
     },
-    outputSchema: { prospects: recordList, count: z.number() },
+    outputSchema: { prospects: recordList, count: z.number(), organizationId: z.string() },
     annotations: readOnlyAnnotations,
     _meta: readOnlyToolMeta,
   }, async (input) => {
     const prospects = await audited(context, 'lead_recovery.list_prospects', () => listLeadRecoveryProspects(context, input));
-    return result(`Found ${prospects.length} Lead Recovery prospects.`, { prospects, count: prospects.length });
+    return result(`Found ${prospects.length} Lead Recovery prospects.`, { prospects, count: prospects.length, organizationId: context.organizationId });
   });
 
   server.registerTool('lead_recovery.get_replies', {
@@ -134,13 +135,14 @@ export function createAurionStackMcpServer(context: McpRequestContext) {
       statuses: z.array(z.enum(youtubeCreatorStatuses)).max(youtubeCreatorStatuses.length).optional(),
       minScore: z.number().int().min(0).max(100).optional(),
       limit: z.number().int().min(1).max(100).default(25),
+      offset: z.number().int().min(0).max(5000).default(0),
     },
-    outputSchema: { creators: recordList, count: z.number() },
+    outputSchema: { creators: recordList, count: z.number(), organizationId: z.string() },
     annotations: readOnlyAnnotations,
     _meta: readOnlyToolMeta,
   }, async (input) => {
     const creators = await audited(context, 'youtube.list_creators', () => listYouTubeCreators(context, input));
-    return result(`Found ${creators.length} YouTube creators.`, { creators, count: creators.length });
+    return result(`Found ${creators.length} YouTube creators.`, { creators, count: creators.length, organizationId: context.organizationId });
   });
 
   server.registerTool('youtube.get_replies', {

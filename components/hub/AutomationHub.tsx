@@ -56,7 +56,7 @@ function AutomationToolCard({ tool, summary }: { tool: AutomationTool; summary: 
       </div>
       <div className="mt-8"><h2 className="text-xl font-semibold text-white">{tool.name}</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-500">{tool.description}</p></div>
       <div className="mt-8 flex items-end justify-between border-t border-white/[0.06] pt-5">
-        <div className="flex gap-8"><ToolMetric label={tool.id === 'youtube-outreach' ? 'Creators' : tool.id === 'automation-studio' ? 'Workflows' : 'Prospects'} value={summary.prospects} /><ToolMetric label={tool.id === 'automation-studio' ? 'Successful runs' : 'Replies'} value={summary.replies} /></div>
+        <div className="flex gap-8"><ToolMetric label={tool.id === 'youtube-outreach' ? 'Creators' : tool.id === 'social-monitor' ? 'Opportunities' : tool.id === 'automation-studio' ? 'Workflows' : 'Prospects'} value={summary.prospects} /><ToolMetric label={tool.id === 'social-monitor' ? 'Alerts' : tool.id === 'automation-studio' ? 'Successful runs' : 'Replies'} value={summary.replies} /></div>
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 group-hover:text-indigo-200">Open tool <ArrowUpRight className="size-3.5" /></span>
       </div>
     </Link>

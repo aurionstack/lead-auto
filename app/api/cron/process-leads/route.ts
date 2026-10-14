@@ -38,7 +38,8 @@ import { buildOneClickUnsubscribeUrl, buildUnsubscribeUrl } from '@/lib/email/un
 import { ACTIVE_CAMPAIGN, campaignSequenceId, isHomeServiceCategory, isUnitedStatesLocation } from '@/lib/tools/lead-recovery/campaign';
 
 export const maxDuration = 60;
-const BATCH_SIZE = 2;
+const configuredBatchSize = Number.parseInt(process.env.LEAD_BATCH_SIZE || '4', 10);
+const BATCH_SIZE = Number.isFinite(configuredBatchSize) ? Math.max(1, Math.min(configuredBatchSize, 10)) : 4;
 
 const SYSTEM_PROMPT = `You qualify United States home-service companies for AurionStack's "${ACTIVE_CAMPAIGN.offer}".
 
@@ -117,6 +118,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // ── 4. Fetch unscored leads from Supabase ─────────────────
   // Targets rows where opportunity_score is NULL or exactly 0
   // and status is 'new' (not yet touched by any action).
+  await supabaseAdmin
+    .from('leads')
+    .update({ status: 'new', processing_started_at: null })
+    .eq('status', 'processing')
+    .lt('processing_started_at', new Date(Date.now() - 15 * 60 * 1000).toISOString());
+
   const { data: leads, error: fetchError } = await supabaseAdmin
     .rpc('claim_leads_for_processing', { batch_limit: BATCH_SIZE });
 
@@ -524,6 +531,36 @@ async function fetchWebsiteText(baseUrl: string): Promise<string> {
       combinedText += result.value + '\n\n';
     }
   });
+
+  // Direct HTML fallback if Jina Reader failed or returned empty
+  if (!combinedText.trim() || combinedText.includes('Failed to load') || combinedText.includes('failed to load')) {
+    try {
+      const directRes = await fetch(cleanBaseUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: AbortSignal.timeout(8000),
+        redirect: 'follow',
+      });
+      if (directRes.ok) {
+        const html = await directRes.text();
+        const $ = cheerio.load(html);
+        const mailtoEmails: string[] = [];
+        $('a[href^="mailto:"]').each((_, el) => {
+          const href = $(el).attr('href') || '';
+          const mail = href.replace(/^mailto:/i, '').split('?')[0].trim();
+          if (mail && mail.includes('@')) mailtoEmails.push(mail);
+        });
+        $('script, style, noscript, svg, nav, footer').remove();
+        const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
+        const mailtoInfo = mailtoEmails.length > 0 ? `\nFound mailto: ${mailtoEmails.join(', ')}` : '';
+        combinedText = `${bodyText.slice(0, 3000)}${mailtoInfo}`;
+      }
+    } catch {
+      // Fall through if direct fetch also fails
+    }
+  }
 
   if (!combinedText.trim()) {
     return 'Website failed to load or no readable text found on any pages.';

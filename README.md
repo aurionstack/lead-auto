@@ -104,6 +104,21 @@ youtube.get_stats
 
 No write, scraping, campaign activation, queueing, generic SQL, or outreach operation is registered with the MCP server. The action catalog keeps preview and outreach actions disabled.
 
+### Aurion desktop integration
+
+The Aurion project at `C:\Users\SAMIR\Desktop\AURION` can connect to this app's `/mcp`
+endpoint with browser OAuth. Its Tools → AurionStack panel provides live status/replies,
+tenant-bound prospect syncing into local revenue campaigns, and optional recurring read-only
+syncs. Listing tools return the server-resolved `organizationId` and accept optional `offset`
+pagination (default 0), retaining the existing maximum of 100 records per call.
+
+Run/deploy these MCP changes before connecting. The desktop client stores OAuth credentials in
+Windows Credential Manager; never copy service-role credentials into it. Sending, discovery,
+campaign activation, queues and existing production cron schedules stay exclusively in this app.
+No new database migration is required for the desktop connector itself. Setup and limits are
+documented in Aurion's `docs/LEAD_SYSTEM_INTEGRATION.md`. This is not a YouTube channel analytics,
+RevQR or Social Monitor connector.
+
 ### Supabase OAuth setup
 
 1. Apply migrations 009, 010, and 011 manually in order.

@@ -31,11 +31,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          failures=()
 
           call_cron() {
             local path="$1"
             echo "Calling ${path}"
-            curl \
+            if curl \
               --request GET \
               --fail-with-body \
               --silent \
@@ -46,8 +47,12 @@ jobs:
               --connect-timeout 15 \
               --max-time 120 \
               --header "Authorization: Bearer ${CRON_SECRET}" \
-              "${APP_URL%/}${path}"
-            echo
+              "${APP_URL%/}${path}"; then
+              echo
+            else
+              failures+=("${path}")
+              echo "Cron endpoint failed: ${path}" >&2
+            fi
           }
 
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -60,9 +65,12 @@ jobs:
             call_cron "/api/cron/youtube-outreach"
             call_cron "/api/cron/revqr-whatsapp"
             call_cron "/api/cron/automation-studio"
+            call_cron "/api/cron/social-monitor"
           elif [[ "$EVENT_SCHEDULE" == "0 0 * * *" ]]; then
             call_cron "/api/cron/auto-scrape"
             call_cron "/api/cron/youtube-discover"
+            call_cron "/api/cron/process-leads"
+            call_cron "/api/cron/process-outreach"
           elif [[ "$EVENT_SCHEDULE" == "*/10 * * * *" ]]; then
             call_cron "/api/cron/process-leads"
             call_cron "/api/cron/auto-push"
@@ -72,7 +80,13 @@ jobs:
             call_cron "/api/cron/youtube-outreach"
             call_cron "/api/cron/revqr-whatsapp"
             call_cron "/api/cron/automation-studio"
+            call_cron "/api/cron/social-monitor"
           else
             echo "Unsupported scheduler event: ${EVENT_NAME} / ${EVENT_SCHEDULE}"
+            exit 1
+          fi
+
+          if (( ${#failures[@]} )); then
+            printf 'Failed cron endpoints: %s\n' "${failures[*]}" >&2
             exit 1
           fi

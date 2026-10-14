@@ -147,7 +147,7 @@ export async function getLeadRecoveryStatus(context: TenantReadContext) {
 
 export async function listLeadRecoveryProspects(
   context: TenantReadContext,
-  input: { statuses?: LeadStatus[]; minScore?: number; limit: number },
+  input: { statuses?: LeadStatus[]; minScore?: number; limit: number; offset?: number },
 ) {
   const statuses = input.statuses?.length ? input.statuses : ['new', 'processing', 'approved'];
   let query = context.supabase
@@ -157,7 +157,8 @@ export async function listLeadRecoveryProspects(
     .in('status', statuses)
     .order('opportunity_score', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
-    .limit(input.limit);
+    .order('id', { ascending: true })
+    .range(input.offset ?? 0, (input.offset ?? 0) + input.limit - 1);
   if (typeof input.minScore === 'number') query = query.gte('opportunity_score', input.minScore);
   const { data, error } = await query;
   if (error) throw new Error('Lead Recovery prospects could not be loaded.');

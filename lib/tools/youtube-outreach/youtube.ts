@@ -24,8 +24,18 @@ async function youtubeJson<T>(path: string, params: Record<string, string>): Pro
   const url = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
   for (const [key, value] of Object.entries({ ...params, key: apiKey() })) url.searchParams.set(key, value);
   const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`YouTube API ${path} failed (${response.status})`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: { errors?: Array<{ reason?: string }> } } | null;
+    const reason = payload?.error?.errors?.[0]?.reason;
+    throw new YouTubeApiError(path, response.status, reason);
+  }
   return response.json() as Promise<T>;
+}
+
+class YouTubeApiError extends Error {
+  constructor(public readonly path: string, public readonly status: number, public readonly reason?: string) {
+    super(`YouTube API ${path} failed (${status}${reason ? `: ${reason}` : ''})`);
+  }
 }
 
 function seconds(duration?: string) {
@@ -78,8 +88,14 @@ export async function discoverYouTubeCreators(query: string, limit: number): Pro
     let playlistItems: PlaylistItem[] = [];
     let videoItems: VideoItem[] = [];
     if (uploads) {
-      const playlist = await youtubeJson<{ items?: PlaylistItem[] }>('playlistItems', { part: 'snippet', playlistId: uploads, maxResults: '8' });
-      playlistItems = playlist.items || [];
+      try {
+        const playlist = await youtubeJson<{ items?: PlaylistItem[] }>('playlistItems', { part: 'snippet', playlistId: uploads, maxResults: '8' });
+        playlistItems = playlist.items || [];
+      } catch (error) {
+        // A stale uploads playlist must not abort discovery for every channel.
+        if (!(error instanceof YouTubeApiError && error.path === 'playlistItems' && error.status === 404 && error.reason === 'playlistNotFound')) throw error;
+        console.warn(`[youtube-discover] Skipping unavailable uploads playlist for channel ${channel.id}`);
+      }
       const videoIds = playlistItems.map((item) => item.snippet?.resourceId?.videoId).filter((id): id is string => Boolean(id));
       if (videoIds.length) {
         const videos = await youtubeJson<{ items?: VideoItem[] }>('videos', { part: 'contentDetails', id: videoIds.join(',') });

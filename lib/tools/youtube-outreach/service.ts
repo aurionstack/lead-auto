@@ -95,7 +95,7 @@ export async function getYouTubeStatus(context: YouTubeTenantReadContext) {
 
 export async function listYouTubeCreators(
   context: YouTubeTenantReadContext,
-  input: { statuses?: YouTubeCreatorStatus[]; minScore?: number; limit: number },
+  input: { statuses?: YouTubeCreatorStatus[]; minScore?: number; limit: number; offset?: number },
 ) {
   let query = context.supabase
     .from('youtube_creators')
@@ -103,7 +103,8 @@ export async function listYouTubeCreators(
     .eq('organization_id', context.organizationId)
     .order('opportunity_score', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
-    .limit(input.limit);
+    .order('id', { ascending: true })
+    .range(input.offset ?? 0, (input.offset ?? 0) + input.limit - 1);
   if (input.statuses?.length) query = query.in('status', input.statuses);
   if (typeof input.minScore === 'number') query = query.gte('opportunity_score', input.minScore);
   const { data, error } = await query;

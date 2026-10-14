@@ -121,7 +121,7 @@ describe('active campaign targeting', () => {
 
 describe('automation hub architecture', () => {
   it('registers independent automation products', () => {
-    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach', 'revqr-whatsapp', 'automation-studio']);
+    expect(automationTools.map((tool) => tool.id)).toEqual(['lead-recovery', 'youtube-outreach', 'revqr-whatsapp', 'social-monitor', 'automation-studio']);
     expect(getAutomationTool('lead-recovery').route).toBe('/dashboard/lead-recovery');
     expect(getAutomationTool('youtube-outreach').mcpNamespace).toBe('youtube');
     expect(getAutomationTool('revqr-whatsapp').mcpNamespace).toBe('revqr');
