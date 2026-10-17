@@ -21,15 +21,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
-  // 1.5. Safety Limit Check: Prevent scraping if system is backlogged
-  // Check pending emails
+  // 1.5. Safety Limit Check: Prevent scraping if system is backlogged.
+  // Only count emails that are actually due now (locked = already being sent;
+  // pending with scheduled_for <= now = ready to send immediately).
+  // Future-scheduled follow-ups are excluded so they cannot block daily scraping.
+  const now = new Date().toISOString();
   const { count: pendingEmails } = await supabaseAdmin
     .from('outreach_queue')
     .select('*', { count: 'exact', head: true })
-    .in('status', ['pending', 'locked']);
+    .or(`status.eq.locked,and(status.eq.pending,scheduled_for.lte.${now})`);
 
   if (pendingEmails !== null && pendingEmails >= 20) {
-    console.log(`[cron/auto-scrape] Safety limit reached: ${pendingEmails} pending emails. Halting scrape.`);
+    console.log(`[cron/auto-scrape] Safety limit reached: ${pendingEmails} due emails. Halting scrape.`);
     return NextResponse.json({ message: 'Scraping paused due to outreach queue backlog.' });
   }
 

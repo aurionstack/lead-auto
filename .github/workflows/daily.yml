@@ -1,0 +1,46 @@
+name: Lead Recovery – Daily Scrape
+
+on:
+  schedule:
+    # Midnight UTC: claim and launch one Apify scraping run for the next
+    # search-config in the rotation. The Apify webhook delivers results
+    # asynchronously to /api/webhooks/apify so this job completes fast.
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Validate scheduler secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APP_URL"     || { echo "Missing GitHub Actions secret: APP_URL"; exit 1; }
+          test -n "$CRON_SECRET" || { echo "Missing GitHub Actions secret: CRON_SECRET"; exit 1; }
+
+      - name: Trigger daily scrape
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Calling /api/cron/auto-scrape"
+          curl \
+            --request GET \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            --connect-timeout 15 \
+            --max-time 120 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/auto-scrape"
+          echo

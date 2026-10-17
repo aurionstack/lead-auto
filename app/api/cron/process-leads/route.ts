@@ -101,17 +101,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // (Removed global Gemini API key validation to support multi-tenant BYOK)
 
   // ── 3. Check Outreach Queue Backlog ────────────────────────
-  // To prevent overwhelming the system, we pause scraping/scoring
-  // if there are too many pending emails waiting to be sent.
+  // Pause lead scoring only if emails are actively backed up right now.
+  // Future-scheduled follow-ups (scheduled_for > now) are excluded so they
+  // cannot block lead discovery and scoring indefinitely.
+  const nowIso = new Date().toISOString();
   const { count: pendingCount, error: countError } = await supabaseAdmin
     .from('outreach_queue')
     .select('*', { count: 'exact', head: true })
-    .in('status', ['pending', 'locked']);
+    .or(`status.eq.locked,and(status.eq.pending,scheduled_for.lte.${nowIso})`);
 
   if (countError) {
     console.error('[cron/process-leads] Error checking queue size:', countError);
   } else if (pendingCount !== null && pendingCount >= 20) {
-    console.log(`[cron/process-leads] Queue is full (${pendingCount} pending emails). Pausing lead processing until emails are sent.`);
+    console.log(`[cron/process-leads] Queue is full (${pendingCount} due emails). Pausing lead processing until emails are sent.`);
     return NextResponse.json({ success: true, processed: 0, message: `Queue backlog is at ${pendingCount}. Paused to allow sending engine to catch up.` });
   }
 
