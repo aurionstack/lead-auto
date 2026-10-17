@@ -139,8 +139,13 @@ export async function getLeadRecoveryStatus(context: TenantReadContext) {
     activeTargets: configs.filter((config) => config.is_active).length,
     totalTargets: configs.length,
     leadCounts: countBy(leads),
-    queueCounts: countBy(queue),
-    senderReady: Boolean(settings?.smtp_host && settings.smtp_user && settings.smtp_password && settings.from_email && settings.postal_address),
+    senderReady: Boolean(
+      (settings?.smtp_host || process.env.SMTP_HOST) &&
+      (settings?.smtp_user || process.env.SMTP_USER) &&
+      (settings?.smtp_password || process.env.SMTP_PASS) &&
+      (settings?.from_email || process.env.EMAIL_FROM || settings?.smtp_user || process.env.SMTP_USER) &&
+      (settings?.postal_address?.trim() || process.env.POSTAL_ADDRESS?.trim())
+    ),
     lastActivityAt: activity,
   };
 }

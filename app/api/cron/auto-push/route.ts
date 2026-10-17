@@ -21,8 +21,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
 
   if (!instantlyApiKey || !instantlyCampaignId) {
-    console.error('[cron/auto-push] INSTANTLY_API_KEY or INSTANTLY_CAMPAIGN_ID missing.');
-    return NextResponse.json({ error: 'Instantly credentials missing.' }, { status: 500 });
+    console.log('[cron/auto-push] INSTANTLY_API_KEY or INSTANTLY_CAMPAIGN_ID not configured; skipping auto-push.');
+    return NextResponse.json({ success: true, processed: 0, message: 'Instantly not configured; auto-push skipped.' });
   }
 
   // 2. Atomically claim high-scoring Instantly leads.

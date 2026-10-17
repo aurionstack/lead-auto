@@ -49,16 +49,39 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   // 2. Rotate fairly: the daily scheduler claims exactly one enabled target,
-  // selecting the target with the oldest last_scraped_at timestamp.
+  // selecting the target with the oldest last_scraped_at timestamp (nulls first).
+  let claimedConfig: SearchConfig | null = null;
   const { data: config, error: fetchError } = await supabaseAdmin
     .rpc('claim_search_config')
     .maybeSingle();
 
   if (fetchError || !config) {
+    if (fetchError) {
+      console.warn('[cron/auto-scrape] claim_search_config RPC error, attempting direct query fallback:', fetchError.message);
+    }
+    const { data: fallbackConfig } = await supabaseAdmin
+      .from('search_configs')
+      .select('*')
+      .eq('is_active', true)
+      .order('last_scraped_at', { ascending: true, nullsFirst: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackConfig) {
+      claimedConfig = fallbackConfig as SearchConfig;
+      await supabaseAdmin
+        .from('search_configs')
+        .update({ last_scraped_at: new Date().toISOString() })
+        .eq('id', fallbackConfig.id);
+    }
+  } else {
+    claimedConfig = config as SearchConfig;
+  }
+
+  if (!claimedConfig) {
     console.log('[cron/auto-scrape] No active search configurations found.');
     return NextResponse.json({ message: 'No configurations found.' });
   }
-  const claimedConfig = config as SearchConfig;
 
   const { data: orgSettings } = await supabaseAdmin
     .from('organization_settings')
@@ -76,7 +99,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'APIFY_WEBHOOK_SECRET not configured.' }, { status: 500 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+  const rawOrigin = process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null) ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    request.nextUrl.origin;
+  const appUrl = rawOrigin.replace(/\/$/, '');
 
   const searchQuery = `${claimedConfig.search_query} in ${claimedConfig.location}`;
   const maxResults = 50; // default for auto-scrape
@@ -100,9 +128,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const jobId = jobData.id;
-  const webhookUrl = `${appUrl}/api/webhooks/apify?jobId=${jobId}`;
+  const webhookUrl = `${appUrl}/api/webhooks/apify?jobId=${jobId}&secret=${encodeURIComponent(webhookSecret)}`;
 
-  console.log(`[cron/auto-scrape] Triggering Apify for: "${searchQuery}"`);
+  console.log(`[cron/auto-scrape] Triggering Apify for: "${searchQuery}" with webhook: ${webhookUrl}`);
 
   const webhooks = [
     {

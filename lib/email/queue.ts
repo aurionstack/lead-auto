@@ -130,46 +130,48 @@ export async function processQueue(batchSize = 10) {
         continue;
       }
 
-      // Fetch tenant SMTP config
+      // Fetch tenant SMTP config with environment variable fallback
       const { data: orgSettings } = await supabaseAdmin
         .from('organization_settings')
         .select('smtp_host, smtp_port, smtp_user, smtp_password, from_email, from_name, postal_address')
         .eq('organization_id', item.organization_id)
-        .single();
+        .maybeSingle();
 
-      if (
-        !orgSettings ||
-        !orgSettings.smtp_host ||
-        !orgSettings.smtp_user ||
-        !orgSettings.smtp_password ||
-        !orgSettings.postal_address?.trim()
-      ) {
+      const host = orgSettings?.smtp_host || process.env.SMTP_HOST;
+      const user = orgSettings?.smtp_user || process.env.SMTP_USER;
+      const pass = orgSettings?.smtp_password || process.env.SMTP_PASS;
+      const port = orgSettings?.smtp_port || (process.env.SMTP_PORT ? Number.parseInt(process.env.SMTP_PORT, 10) : 465);
+      const fromEmail = orgSettings?.from_email || process.env.EMAIL_FROM || user;
+      const fromName = orgSettings?.from_name || process.env.EMAIL_FROM_NAME;
+      const postalAddress = orgSettings?.postal_address?.trim() || process.env.POSTAL_ADDRESS?.trim();
+
+      if (!host || !user || !pass || !postalAddress) {
         const missing = [
-          !orgSettings?.smtp_host ? 'SMTP host' : null,
-          !orgSettings?.smtp_user ? 'SMTP user' : null,
-          !orgSettings?.smtp_password ? 'SMTP password' : null,
-          !orgSettings?.postal_address?.trim() ? 'physical postal address' : null,
+          !host ? 'SMTP host' : null,
+          !user ? 'SMTP user' : null,
+          !pass ? 'SMTP password' : null,
+          !postalAddress ? 'physical postal address' : null,
         ].filter(Boolean).join(', ');
         await markQueueFailed(
           item.id,
           item.lead_id,
           item.organization_id,
           item.attempt_count,
-          `Organization sender configuration incomplete: ${missing}`,
+          `Sender configuration incomplete: ${missing}`,
           { retry: false },
         );
         continue;
       }
 
       const smtpConfig = {
-        host: orgSettings.smtp_host,
-        port: orgSettings.smtp_port || 465,
-        user: orgSettings.smtp_user,
-        pass: orgSettings.smtp_password,
-        fromEmail: orgSettings.from_email || orgSettings.smtp_user,
-        fromName: orgSettings.from_name,
-        replyTo: process.env.EMAIL_REPLY_TO || orgSettings.from_email || orgSettings.smtp_user,
-        postalAddress: orgSettings.postal_address,
+        host,
+        port,
+        user,
+        pass,
+        fromEmail,
+        fromName,
+        replyTo: process.env.EMAIL_REPLY_TO || fromEmail,
+        postalAddress,
       };
 
       // Send Email using the snapshot!

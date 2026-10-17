@@ -8,6 +8,7 @@ export default function LeadRecoveryLayout({ children }: { children: React.React
   return <ToolShell title={tool.name} description="US home-service prospecting and missed-enquiry recovery." icon={tool.icon} status="Campaigns controlled" navigation={[
     { label: 'Overview', href: base }, { label: 'Prospects', href: `${base}/prospects` },
     { label: 'Campaigns', href: `${base}/campaigns` }, { label: 'Inbox', href: `${base}/inbox` },
-    { label: 'Settings', href: `${base}/settings` },
+    { label: 'Targets', href: `${base}/settings` },
+    { label: 'Integrations', href: '/dashboard/integrations' },
   ]}>{children}</ToolShell>;
 }

@@ -30,7 +30,11 @@ import { apifyTokens, fetchApify } from '@/lib/apify';
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  if (!isBearerAuthorized(request, process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET)) {
+  const expectedSecret = process.env.APIFY_WEBHOOK_SECRET || process.env.CRON_SECRET;
+  const querySecret = request.nextUrl.searchParams.get('secret');
+  const authorized = isBearerAuthorized(request, expectedSecret) || Boolean(expectedSecret && querySecret === expectedSecret);
+
+  if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -82,17 +86,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  if (!organizationId) {
+    const { data: defaultOrg } = await supabaseAdmin
+      .from('organizations')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (defaultOrg) organizationId = defaultOrg.id;
+  }
+
   if (organizationId) {
     const { data: orgSettings } = await supabaseAdmin
       .from('organization_settings')
       .select('apify_api_token')
       .eq('organization_id', organizationId)
-      .single();
+      .maybeSingle();
     apifyToken = orgSettings?.apify_api_token || process.env.APIFY_TOKEN || null;
+  } else {
+    apifyToken = process.env.APIFY_TOKEN || null;
   }
 
   const tokens = apifyTokens(apifyToken);
-  if (!organizationId || !tokens.length) {
+  if (!tokens.length) {
     console.error(`[webhook/apify] APIFY_TOKEN is not configured for org ${organizationId}.`);
     return NextResponse.json(
       { success: false, error: 'Apify token missing for organization.' },
