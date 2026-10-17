@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Menu, MessageCircle, Radar, Video as Youtube, Workflow, X } from 'lucide-react';
+import { Menu, MessageCircle, Radar, Video as Youtube, Workflow, X } from 'lucide-react';
 import { useState } from 'react';
 import BrandMark from './BrandMark';
 import LogoutButton from './LogoutButton';
@@ -33,13 +33,9 @@ export default function ToolShell({ title, description, icon, status, navigation
       <div className="mx-auto flex min-h-screen max-w-[1680px]">
         <aside className={`${mobileOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-white/[0.07] bg-[#0b0e14] p-5 transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0`}>
           <div className="flex items-center justify-between px-2">
-            <Link href="/dashboard" aria-label="AurionStack Automation Hub"><BrandMark /></Link>
+            <Link href="/dashboard/lead-recovery" aria-label="AurionStack Lead Recovery"><BrandMark /></Link>
             <button onClick={() => setMobileOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 lg:hidden" aria-label="Close navigation"><X className="size-5" /></button>
           </div>
-
-          <Link href="/dashboard" className="mt-7 inline-flex items-center gap-2 px-3 text-xs font-medium text-slate-500 hover:text-slate-200">
-            <ArrowLeft className="size-3.5" /> Back to automations
-          </Link>
 
           <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
             <div className="flex items-center gap-3">

@@ -1,7 +1,8 @@
-import YouTubeOverview from '@/components/tools/youtube-outreach/YouTubeOverview';
-import { getYouTubeDashboardData } from '@/lib/tools/youtube-outreach/service';
+import { redirect } from 'next/navigation';
 
-export default async function YouTubeOutreachPage() {
-  return <YouTubeOverview data={await getYouTubeDashboardData()} />;
+export default function YouTubeOutreachPage() {
+  redirect('/dashboard/lead-recovery');
 }
+
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;

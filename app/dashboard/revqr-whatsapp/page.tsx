@@ -1,5 +1,8 @@
-import RevQrOverview from '@/components/tools/revqr-whatsapp/RevQrOverview';
-import { getRevQrDashboardData } from '@/lib/tools/revqr-whatsapp/service';
+import { redirect } from 'next/navigation';
 
-export default async function RevQrPage() { return <RevQrOverview data={await getRevQrDashboardData()} />; }
+export default function RevQrPage() {
+  redirect('/dashboard/lead-recovery');
+}
+
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;

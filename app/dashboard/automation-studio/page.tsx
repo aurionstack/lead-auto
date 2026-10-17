@@ -1,9 +1,8 @@
-import AutomationBuilder from '@/components/tools/automation-studio/AutomationBuilder';
-import { automationActionCatalog } from '@/lib/tools/automation-studio/catalog';
-import { getAutomationStudioData } from '@/lib/tools/automation-studio/service';
+import { redirect } from 'next/navigation';
 
-export default async function AutomationStudioPage() {
-  const data = await getAutomationStudioData();
-  return <AutomationBuilder databaseReady={data.databaseReady} workflows={data.workflows} catalog={[...automationActionCatalog]} />;
+export default function AutomationStudioPage() {
+  redirect('/dashboard/lead-recovery');
 }
+
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;

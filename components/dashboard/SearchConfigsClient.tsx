@@ -72,7 +72,7 @@ export default function SearchConfigsClient({ configs, embedded = false }: Props
       {/* ── Top Navigation Bar ──────────────────────────────── */}
       {!embedded && <header className="h-14 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-800 transition-colors">
+          <Link href="/dashboard/lead-recovery" className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-800 transition-colors">
             <LayoutDashboard className="w-4 h-4 text-slate-400" />
           </Link>
           <div className="w-px h-4 bg-slate-800"></div>
@@ -87,7 +87,7 @@ export default function SearchConfigsClient({ configs, embedded = false }: Props
 
         <div className="flex items-center gap-4">
           <Link
-            href="/dashboard"
+            href="/dashboard/lead-recovery/campaigns"
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <Search className="w-3.5 h-3.5" />

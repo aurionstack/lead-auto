@@ -46,7 +46,7 @@ export async function proxy(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone()
     const requestedRedirect = request.nextUrl.searchParams.get('redirect')
-    const safeRedirect = requestedRedirect?.startsWith('/oauth/consent?authorization_id=') ? requestedRedirect : '/dashboard'
+    const safeRedirect = requestedRedirect?.startsWith('/oauth/consent?authorization_id=') ? requestedRedirect : '/dashboard/lead-recovery'
     const destination = new URL(safeRedirect, request.url)
     url.pathname = destination.pathname
     url.search = destination.search
